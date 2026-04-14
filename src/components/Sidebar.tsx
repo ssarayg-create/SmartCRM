@@ -28,10 +28,9 @@ interface SidebarProps {
   onLogout: () => void;
   isOpen: boolean;
   onClose: () => void;
-  onShowVideo: () => void;
 }
 
-export default function Sidebar({ activeTab, setActiveTab, userProfile, onLogout, isOpen, onClose, onShowVideo }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, userProfile, onLogout, isOpen, onClose }: SidebarProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -115,15 +114,6 @@ export default function Sidebar({ activeTab, setActiveTab, userProfile, onLogout
                 )} />
               </button>
             ))}
-
-            <button
-              onClick={onShowVideo}
-              className="sidebar-item w-full group relative overflow-hidden text-primary bg-primary/5 border border-primary/10 mt-4"
-            >
-              <Play className="w-5 h-5 fill-current" />
-              <span className="flex-1 text-left font-black">Video Tutorial</span>
-              <Sparkles className="w-4 h-4 animate-pulse" />
-            </button>
           </nav>
         </div>
 

@@ -12,3 +12,11 @@ export function isFollowUpUrgent(dateStr: string): boolean {
   // Urgent if date is today or in the past
   return date <= now;
 }
+
+export function isStagnant(lastContactStr: string, days: number = 7): boolean {
+  const lastContact = new Date(lastContactStr);
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - lastContact.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays >= days;
+}

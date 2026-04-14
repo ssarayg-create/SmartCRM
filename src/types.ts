@@ -15,7 +15,23 @@ export type LeadStatus =
   | "Venta cerrada";
 
 export type Role = "Admin" | "Vendedor";
-export type PlanType = "Básico" | "Profesional" | "Premium";
+export type PlanType = "Básico" | "Pyme" | "Macro";
+export type ClientTemperature = "Frío" | "Tibio" | "Caliente";
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  unlockedAt?: string;
+}
+
+export interface Medal {
+  id: string;
+  type: 'oro' | 'plata' | 'bronce';
+  title: string;
+  date: string;
+}
 
 export interface User {
   id: string;
@@ -26,6 +42,10 @@ export interface User {
   avatar?: string;
   salesCount: number;
   closedRevenue: number;
+  points: number;
+  achievements: Achievement[];
+  medals: Medal[];
+  hasSeenOnboarding?: boolean;
 }
 
 export interface Message {
@@ -63,10 +83,12 @@ export interface Client {
   email: string;
   ciudad: string;
   estado: LeadStatus;
+  temperatura: ClientTemperature;
   fechaRegistro: string;
   ultimoContacto: string;
   proximoSeguimiento: string;
   necesidadDetectada: string;
+  solucionOfrecida: string;
   equipoOfrecido: string;
   presupuestoEstimado: number;
   assignedTo: string; // User ID

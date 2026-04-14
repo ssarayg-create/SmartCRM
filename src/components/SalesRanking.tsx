@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Medal, Target, TrendingUp, ArrowUp, ArrowDown } from 'lucide-react';
+import { Trophy, Medal, Target, TrendingUp, ArrowUp, ArrowDown, Star, Award, Zap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -76,14 +76,31 @@ export default function SalesRanking({ clients, onSelectUser }: SalesRankingProp
 
               <div className="grid grid-cols-2 gap-4 w-full pt-4">
                 <div className={cn("p-4 rounded-3xl", i === 0 ? "bg-white/5 border border-white/10" : "bg-muted border border-border")}>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Asignados</p>
-                  <p className={cn("text-xl font-black mt-1", i === 0 ? "text-white" : "text-foreground")}>{user.assignedCount}</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Puntos</p>
+                  <p className={cn("text-xl font-black mt-1 flex items-center justify-center gap-1", i === 0 ? "text-primary" : "text-foreground")}>
+                    <Zap className="w-4 h-4" />
+                    {user.points}
+                  </p>
                 </div>
                 <div className={cn("p-4 rounded-3xl", i === 0 ? "bg-white/5 border border-white/10" : "bg-muted border border-border")}>
                   <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Ganados</p>
                   <p className={cn("text-xl font-black mt-1", i === 0 ? "text-white" : "text-foreground")}>{user.wonCount}</p>
                 </div>
               </div>
+
+              {user.medals.length > 0 && (
+                <div className="flex gap-2 pt-2">
+                  {user.medals.map(medal => (
+                    <div key={medal.id} title={medal.title} className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center shadow-sm",
+                      medal.type === 'oro' ? "bg-warning/20 text-warning" : 
+                      medal.type === 'plata' ? "bg-slate-300/20 text-slate-400" : "bg-orange-300/20 text-orange-600"
+                    )}>
+                      <Award className="w-5 h-5" />
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-success">
                 <ArrowUp className="w-4 h-4" />
@@ -96,9 +113,20 @@ export default function SalesRanking({ clients, onSelectUser }: SalesRankingProp
 
       {/* Full List */}
       <Card className="glass-card border-none overflow-hidden">
-        <CardHeader className="p-8 border-b border-border">
-          <CardTitle className="text-xl font-black text-foreground">Tabla de Posiciones</CardTitle>
-          <CardDescription className="font-bold text-muted-foreground">Resultados acumulados del trimestre actual.</CardDescription>
+        <CardHeader className="p-8 border-b border-border flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-xl font-black text-foreground">Tabla de Posiciones</CardTitle>
+            <CardDescription className="font-bold text-muted-foreground">Resultados acumulados del trimestre actual.</CardDescription>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Meta Mensual Equipo</p>
+              <p className="text-sm font-black text-foreground">$50.000.000</p>
+            </div>
+            <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+              <div className="h-full bg-primary w-[75%]" />
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -107,9 +135,9 @@ export default function SalesRanking({ clients, onSelectUser }: SalesRankingProp
                 <tr className="bg-muted/50">
                   <th className="px-8 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Posición</th>
                   <th className="px-8 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Vendedor</th>
-                  <th className="px-8 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Asignados</th>
+                  <th className="px-8 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Puntos</th>
                   <th className="px-8 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Ganados</th>
-                  <th className="px-8 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Ingresos Totales</th>
+                  <th className="px-8 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Logros</th>
                   <th className="px-8 py-4 text-left text-[10px] font-black text-muted-foreground uppercase tracking-widest">Tasa de Éxito</th>
                 </tr>
               </thead>
@@ -140,13 +168,24 @@ export default function SalesRanking({ clients, onSelectUser }: SalesRankingProp
                       </div>
                     </td>
                     <td className="px-8 py-6">
-                      <span className="text-sm font-black text-foreground">{user.assignedCount}</span>
+                      <div className="flex items-center gap-1 text-sm font-black text-primary">
+                        <Zap className="w-3 h-3" />
+                        {user.points}
+                      </div>
                     </td>
                     <td className="px-8 py-6">
                       <span className="text-sm font-black text-foreground">{user.wonCount}</span>
                     </td>
                     <td className="px-8 py-6">
-                      <span className="text-sm font-black text-foreground">${user.closedRevenue.toLocaleString()}</span>
+                      <div className="flex gap-1">
+                        {user.achievements.slice(0, 3).map(a => (
+                          <span key={a.id} title={a.title} className="text-lg">{a.icon}</span>
+                        ))}
+                        {user.achievements.length > 3 && (
+                          <span className="text-[10px] font-bold text-muted-foreground flex items-center">+{user.achievements.length - 3}</span>
+                        )}
+                        {user.achievements.length === 0 && <span className="text-xs text-muted-foreground italic">Sin logros</span>}
+                      </div>
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-3">

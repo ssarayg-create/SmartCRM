@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { Mail, Lock, User, ArrowRight, ShieldCheck, Zap } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Mail, Lock, User, ArrowRight, ShieldCheck, Zap, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,7 @@ interface AuthViewProps {
 
 export default function AuthView({ onLogin }: AuthViewProps) {
   const [isLogin, setIsLogin] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -26,78 +27,96 @@ export default function AuthView({ onLogin }: AuthViewProps) {
       return;
     }
 
-    // Usuario especial hardcodeado
-    const specialUser = {
-      id: 'u_val',
-      name: 'Valentina Gutiérrez',
-      email: 'valentinagutierrez@gmail.com',
-      password: 'vale1234',
-      role: 'Admin',
-      plan: 'Premium',
-      avatar: 'VG'
-    };
+    setIsLoading(true);
 
-    if (isLogin) {
-      // 1. Validar PRIMERO el usuario especial
-      if (formData.email === specialUser.email) {
-        if (formData.password === specialUser.password) {
-          toast.success('¡Bienvenido de nuevo, Valentina!');
-          onLogin(specialUser);
-          return;
-        } else {
-          toast.error('Contraseña incorrecta');
-          return;
-        }
-      }
-
-      // 2. Lógica para otros usuarios
-      const savedUsers = JSON.parse(localStorage.getItem('crm_users') || '[]');
-      const user = savedUsers.find((u: any) => u.email === formData.email);
-      
-      if (!user) {
-        toast.error('Este usuario no está registrado. Por favor regístrate.');
-        return;
-      }
-
-      if (user.password !== formData.password) {
-        toast.error('Contraseña incorrecta');
-        return;
-      }
-
-      toast.success('¡Bienvenido de nuevo!');
-      onLogin(user);
-    } else {
-      // Registro
-      const savedUsers = JSON.parse(localStorage.getItem('crm_users') || '[]');
-      
-      // No permitir registrar el email del usuario especial
-      if (formData.email === specialUser.email) {
-        toast.error('Este correo ya está registrado.');
-        return;
-      }
-
-      const existingUser = savedUsers.find((u: any) => u.email === formData.email);
-      if (existingUser) {
-        toast.error('Este correo ya está registrado.');
-        return;
-      }
-
-      const newUser = {
-        id: 'u_' + Math.random().toString(36).substr(2, 9),
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        role: 'Vendedor',
-        plan: 'Básico',
-        avatar: formData.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+    // Simular latencia de red
+    setTimeout(() => {
+      // Usuario especial hardcodeado
+      const specialUser = {
+        id: 'u_val',
+        name: 'Valentina Gutiérrez',
+        email: 'valentinagutierrez@gmail.com',
+        password: 'vale1234',
+        role: 'Admin',
+        plan: 'Premium',
+        avatar: 'VG',
+        salesCount: 12,
+        closedRevenue: 4500000,
+        hasSeenOnboarding: true
       };
 
-      const updatedUsers = [...savedUsers, newUser];
-      localStorage.setItem('crm_users', JSON.stringify(updatedUsers));
-      
-      toast.success('¡Cuenta creada con éxito!');
-      onLogin(newUser);
-    }
+      if (isLogin) {
+        // 1. Validar PRIMERO el usuario especial
+        if (formData.email === specialUser.email) {
+          if (formData.password === specialUser.password) {
+            toast.success('¡Bienvenido de nuevo, Valentina!');
+            onLogin(specialUser);
+            setIsLoading(false);
+            return;
+          } else {
+            toast.error('Contraseña incorrecta');
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // 2. Lógica para otros usuarios
+        const savedUsers = JSON.parse(localStorage.getItem('crm_users') || '[]');
+        const user = savedUsers.find((u: any) => u.email === formData.email);
+        
+        if (!user) {
+          toast.error('Este usuario no está registrado. Por favor regístrate.');
+          setIsLoading(false);
+          return;
+        }
+
+        if (user.password !== formData.password) {
+          toast.error('Contraseña incorrecta');
+          setIsLoading(false);
+          return;
+        }
+
+        toast.success('¡Bienvenido de nuevo!');
+        onLogin(user);
+      } else {
+        // Registro
+        const savedUsers = JSON.parse(localStorage.getItem('crm_users') || '[]');
+        
+        // No permitir registrar el email del usuario especial
+        if (formData.email === specialUser.email) {
+          toast.error('Este correo ya está registrado.');
+          setIsLoading(false);
+          return;
+        }
+
+        const existingUser = savedUsers.find((u: any) => u.email === formData.email);
+        if (existingUser) {
+          toast.error('Este correo ya está registrado.');
+          setIsLoading(false);
+          return;
+        }
+
+        const newUser = {
+          id: 'u_' + Math.random().toString(36).substr(2, 9),
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          role: 'Vendedor',
+          plan: 'Básico',
+          avatar: formData.name.split(' ').map((n: string) => n[0]).join('').toUpperCase(),
+          salesCount: 0,
+          closedRevenue: 0,
+          hasSeenOnboarding: false
+        };
+
+        const updatedUsers = [...savedUsers, newUser];
+        localStorage.setItem('crm_users', JSON.stringify(updatedUsers));
+        
+        toast.success('¡Cuenta creada con éxito!');
+        onLogin(newUser);
+      }
+      setIsLoading(false);
+    }, 1500);
   };
 
   return (
@@ -144,7 +163,27 @@ export default function AuthView({ onLogin }: AuthViewProps) {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
+          className="relative"
         >
+          <AnimatePresence>
+            {isLoading && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-50 flex items-center justify-center bg-card/60 backdrop-blur-sm rounded-[2.5rem]"
+              >
+                <div className="flex flex-col items-center gap-4">
+                  <div className="relative">
+                    <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    <Zap className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-primary animate-pulse" />
+                  </div>
+                  <p className="text-sm font-black text-foreground uppercase tracking-widest animate-pulse">Autenticando...</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <Card className="border-none shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] rounded-[2.5rem] overflow-hidden bg-card">
             <CardHeader className="p-10 pb-0">
               <CardTitle className="text-3xl font-black text-foreground tracking-tight">
@@ -155,75 +194,86 @@ export default function AuthView({ onLogin }: AuthViewProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-10">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {!isLogin && (
+              <div className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {!isLogin && (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">Nombre Completo</Label>
+                      <div className="relative">
+                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                        <Input 
+                          placeholder="Ej: Carlos Rodríguez" 
+                          disabled={isLoading}
+                          className="pl-12 h-14 rounded-2xl bg-muted border-border focus:ring-primary font-bold text-foreground"
+                          value={formData.name}
+                          onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="space-y-2">
-                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">Nombre Completo</Label>
+                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">Correo Electrónico</Label>
                     <div className="relative">
-                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                       <Input 
-                        placeholder="Ej: Carlos Rodríguez" 
+                        type="email"
+                        placeholder="carlos@ejemplo.com" 
+                        disabled={isLoading}
                         className="pl-12 h-14 rounded-2xl bg-muted border-border focus:ring-primary font-bold text-foreground"
-                        value={formData.name}
-                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        value={formData.email}
+                        onChange={(e) => setFormData({...formData, email: e.target.value})}
                       />
                     </div>
                   </div>
-                )}
-                
-                <div className="space-y-2">
-                  <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">Correo Electrónico</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input 
-                      type="email"
-                      placeholder="carlos@ejemplo.com" 
-                      className="pl-12 h-14 rounded-2xl bg-muted border-border focus:ring-primary font-bold text-foreground"
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    />
-                  </div>
-                </div>
 
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center ml-1">
-                    <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest">Contraseña</Label>
-                    {isLogin && (
-                      <button type="button" className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline">
-                        ¿Olvidaste tu contraseña?
-                      </button>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center ml-1">
+                      <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest">Contraseña</Label>
+                      {isLogin && (
+                        <button type="button" className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline">
+                          ¿Olvidaste tu contraseña?
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                      <Input 
+                        type="password"
+                        placeholder="••••••••" 
+                        disabled={isLoading}
+                        className="pl-12 h-14 rounded-2xl bg-muted border-border focus:ring-primary font-bold text-foreground"
+                        value={formData.password}
+                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  <Button type="submit" disabled={isLoading} className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-xl shadow-primary/20 group">
+                    {isLoading ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      <>
+                        <span>{isLogin ? 'Entrar al Sistema' : 'Registrarme Ahora'}</span>
+                        <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                      </>
                     )}
-                  </div>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input 
-                      type="password"
-                      placeholder="••••••••" 
-                      className="pl-12 h-14 rounded-2xl bg-muted border-border focus:ring-primary font-bold text-foreground"
-                      value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    />
-                  </div>
-                </div>
+                  </Button>
 
-                <Button type="submit" className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-xl shadow-primary/20 group">
-                  <span>{isLogin ? 'Entrar al Sistema' : 'Registrarme Ahora'}</span>
-                  <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                </Button>
-
-                <div className="text-center pt-4">
-                  <p className="text-muted-foreground font-bold">
-                    {isLogin ? '¿No tienes una cuenta?' : '¿Ya tienes una cuenta?'}
-                    <button 
-                      type="button"
-                      onClick={() => setIsLogin(!isLogin)}
-                      className="ml-2 text-primary hover:underline"
-                    >
-                      {isLogin ? 'Regístrate aquí' : 'Inicia sesión'}
-                    </button>
-                  </p>
-                </div>
-              </form>
+                  <div className="text-center pt-4">
+                    <p className="text-muted-foreground font-bold">
+                      {isLogin ? '¿No tienes una cuenta?' : '¿Ya tienes una cuenta?'}
+                      <button 
+                        type="button"
+                        onClick={() => setIsLogin(!isLogin)}
+                        className="ml-2 text-primary hover:underline"
+                      >
+                        {isLogin ? 'Regístrate aquí' : 'Inicia sesión'}
+                      </button>
+                    </p>
+                  </div>
+                </form>
+              </div>
             </CardContent>
           </Card>
         </motion.div>

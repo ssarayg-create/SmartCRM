@@ -27,6 +27,8 @@ interface SettingsViewProps {
   setUserProfile: (profile: { name: string; email: string }) => void;
   darkMode: boolean;
   setDarkMode: (dark: boolean) => void;
+  advisors: any[];
+  onUpdateAdvisors: (advisors: any[]) => void;
 }
 
 export default function SettingsView({ 
@@ -35,7 +37,9 @@ export default function SettingsView({
   userProfile, 
   setUserProfile,
   darkMode,
-  setDarkMode
+  setDarkMode,
+  advisors,
+  onUpdateAdvisors
 }: SettingsViewProps) {
   const [newType, setNewType] = useState('');
   const [profile, setProfile] = useState(userProfile);
@@ -163,6 +167,59 @@ export default function SettingsView({
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Gestión de Asesores */}
+          <Card className="glass-card border-none overflow-hidden">
+            <CardHeader className="bg-muted/50 border-b border-border flex flex-row items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-indigo-500" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-black text-foreground">Gestión de Asesores</CardTitle>
+                  <CardDescription className="font-bold text-muted-foreground">Administra los accesos y roles del equipo.</CardDescription>
+                </div>
+              </div>
+              <Button onClick={() => toast.info("Funcionalidad de invitación enviada")} className="rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-black text-xs h-10">
+                <Plus className="w-4 h-4 mr-2" /> Invitar Asesor
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border">
+                {advisors.map((advisor) => (
+                  <div key={advisor.id} className="p-6 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-lg font-black text-primary">
+                        {advisor.avatar}
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-foreground">{advisor.name}</p>
+                        <p className="text-xs font-bold text-muted-foreground">{advisor.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-right">
+                        <Badge variant="outline" className={cn(
+                          "font-black text-[9px] uppercase tracking-widest",
+                          advisor.role === 'Admin' ? "border-indigo-500 text-indigo-500" : "border-muted-foreground text-muted-foreground"
+                        )}>
+                          {advisor.role}
+                        </Badge>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground hover:text-primary">
+                          <SettingsIcon className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground hover:text-danger">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>

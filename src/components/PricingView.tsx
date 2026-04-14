@@ -27,8 +27,8 @@ export default function PricingView({ currentPlan, onUpgrade }: PricingViewProps
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {PLANS.map((plan, i) => {
-          const isPremium = plan.name === 'Premium';
-          const isPro = plan.name === 'Profesional';
+          const isMacro = plan.name === 'Macro';
+          const isPyme = plan.name === 'Pyme';
           const isCurrent = currentPlan === plan.name;
 
           return (
@@ -39,8 +39,8 @@ export default function PricingView({ currentPlan, onUpgrade }: PricingViewProps
               transition={{ delay: i * 0.1 }}
               className="relative"
             >
-              {isPremium && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10">
+              {isMacro && (
+                <div className="absolute -top-4 left-1/2 -translate-y-1/2 z-10">
                   <Badge className="bg-gradient-to-r from-primary to-secondary text-white border-none px-4 py-1 rounded-full font-black text-[10px] uppercase tracking-widest shadow-lg">
                     Más Popular
                   </Badge>
@@ -49,19 +49,19 @@ export default function PricingView({ currentPlan, onUpgrade }: PricingViewProps
 
               <Card className={cn(
                 "h-full border-none rounded-[2.5rem] overflow-hidden transition-all duration-500 hover:scale-[1.02]",
-                isPremium ? "shadow-[0_40px_80px_-16px_rgba(37,99,235,0.15)] ring-2 ring-primary" : "shadow-[0_20px_40px_-8px_rgba(0,0,0,0.05)]",
+                isMacro ? "shadow-[0_40px_80px_-16px_rgba(37,99,235,0.15)] ring-2 ring-primary" : "shadow-[0_20px_40px_-8px_rgba(0,0,0,0.05)]",
                 isCurrent && "ring-2 ring-success"
               )}>
                 <CardHeader className={cn(
                   "p-10 pb-6",
-                  isPremium ? "bg-primary/5" : isPro ? "bg-secondary/5" : "bg-muted"
+                  isMacro ? "bg-primary/5" : isPyme ? "bg-secondary/5" : "bg-muted"
                 )}>
                   <div className="flex items-center gap-3 mb-4">
                     <div className={cn(
                       "w-10 h-10 rounded-xl flex items-center justify-center",
-                      isPremium ? "bg-primary text-white" : isPro ? "bg-secondary text-white" : "bg-muted text-muted-foreground"
+                      isMacro ? "bg-primary text-white" : isPyme ? "bg-secondary text-white" : "bg-muted text-muted-foreground"
                     )}>
-                      {isPremium ? <Star className="w-5 h-5" /> : isPro ? <Zap className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
+                      {isMacro ? <Star className="w-5 h-5" /> : isPyme ? <Zap className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
                     </div>
                     <CardTitle className="text-2xl font-black text-foreground tracking-tight">{plan.name}</CardTitle>
                   </div>
@@ -83,7 +83,7 @@ export default function PricingView({ currentPlan, onUpgrade }: PricingViewProps
                       <div key={idx} className="flex items-start gap-3">
                         <div className={cn(
                           "w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
-                          isPremium ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                          isMacro ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
                         )}>
                           <Check className="w-3 h-3" />
                         </div>
@@ -101,7 +101,7 @@ export default function PricingView({ currentPlan, onUpgrade }: PricingViewProps
                       "w-full h-14 rounded-2xl font-black text-lg transition-all group",
                       isCurrent 
                         ? "bg-success/10 text-success border-2 border-success/20 cursor-default" 
-                        : isPremium 
+                        : isMacro 
                           ? "bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20" 
                           : "bg-primary hover:bg-primary/90 text-white"
                     )}
@@ -122,17 +122,15 @@ export default function PricingView({ currentPlan, onUpgrade }: PricingViewProps
         
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-6">
-            <h3 className="text-4xl font-black tracking-tighter">¿Necesitas una solución <span className="text-primary">Enterprise</span>?</h3>
+            <h3 className="text-4xl font-black tracking-tighter">¿Necesitas una solución <span className="text-primary">Personalizada</span>?</h3>
             <p className="text-lg text-slate-400 font-medium leading-relaxed">
-              Para equipos de más de 100 personas, ofrecemos despliegues personalizados, integraciones API ilimitadas y soporte 24/7 dedicado.
+              Ofrecemos despliegues a medida, integraciones API ilimitadas y soporte 24/7 dedicado para grandes equipos.
             </p>
             <Button 
-              onClick={() => toast.info("Contactar a Ventas", {
-                description: "Llámanos o escríbenos al +57 300 123 4567 para una solución personalizada.",
-                icon: <Phone className="w-5 h-5 text-primary" />
-              })}
-              className="h-14 px-10 rounded-2xl bg-white text-slate-950 font-black text-lg hover:bg-slate-100 transition-all"
+              onClick={() => window.open('https://wa.me/573001234567', '_blank')}
+              className="h-14 px-10 rounded-2xl bg-white text-slate-950 font-black text-lg hover:bg-slate-100 transition-all flex items-center gap-3"
             >
+              <Phone className="w-5 h-5 text-primary" />
               Hablar con Ventas
             </Button>
           </div>

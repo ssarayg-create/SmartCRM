@@ -18,28 +18,61 @@ import {
   Plus,
   History,
   DollarSign,
-  Package
+  Package,
+  MoreVertical,
+  Trash2,
+  UserPlus,
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
-import { Client, LeadStatus, Interaction } from '../types';
+import { Client, LeadStatus, Interaction, ClientTemperature } from '../types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { USERS } from '../constants';
 import { getRecommendation } from '../lib/crm-logic';
+import { getCommercialRecommendation } from '../services/geminiService';
 import { toast } from 'sonner';
 
 interface ClientDetailViewProps {
   client: Client;
   onClose: () => void;
   onEdit: (client: Client) => void;
+  onDelete: (clientId: string) => void;
+  onTransfer: (clientId: string, userId: string) => void;
+  onUpdateClient: (clientId: string, data: Partial<Client>) => void;
   onOpenChat: (client: Client) => void;
   onAddInteraction: (clientId: string, interaction: Omit<Interaction, 'id'>) => void;
 }
 
-export default function ClientDetailView({ client, onClose, onEdit, onOpenChat, onAddInteraction }: ClientDetailViewProps) {
+export default function ClientDetailView({ 
+  client, 
+  onClose, 
+  onEdit, 
+  onDelete,
+  onTransfer,
+  onUpdateClient,
+  onOpenChat, 
+  onAddInteraction 
+}: ClientDetailViewProps) {
   const [newInteraction, setNewInteraction] = useState('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<{
+    recomendacion: string;
+    proximaAccion: string;
+    proximaFecha: string;
+    equipoSugerido: string;
+    planSugerido: string;
+  } | null>(null);
+
   const assignedUser = USERS.find(u => u.id === client.assignedTo);
   const recommendation = getRecommendation(client.tipoNegocio);
 
@@ -56,6 +89,59 @@ export default function ClientDetailView({ client, onClose, onEdit, onOpenChat, 
   };
 
   const statusConfig = getStatusConfig(client.estado);
+
+  const getTempColor = (temp: ClientTemperature) => {
+    switch (temp) {
+      case 'Caliente': return 'text-rose-500 bg-rose-500/10';
+      case 'Tibio': return 'text-amber-500 bg-amber-500/10';
+      case 'Frío': return 'text-blue-500 bg-blue-500/10';
+      default: return 'text-muted-foreground bg-muted';
+    }
+  };
+
+  const handleGenerateAI = async () => {
+    setIsGeneratingAI(true);
+    try {
+      const suggestion = await getCommercialRecommendation({
+        negocio: client.nombreNegocio,
+        estado: client.estado,
+        temperatura: client.temperatura,
+        necesidad: client.necesidadDetectada
+      });
+      setAiSuggestion(suggestion);
+      toast.success("Sugerencia generada con éxito");
+    } catch (error) {
+      toast.error("Error al generar sugerencia");
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  const handleApplySuggestion = () => {
+    if (!aiSuggestion) return;
+    
+    onUpdateClient(client.id, {
+      proximoSeguimiento: aiSuggestion.proximaFecha,
+      equipoOfrecido: aiSuggestion.equipoSugerido,
+      solucionOfrecida: `Plan Tiendana ${aiSuggestion.planSugerido}`,
+      necesidadDetectada: `${client.necesidadDetectada}\n\n[Sugerencia IA]: ${aiSuggestion.proximaAccion}`
+    });
+
+    onAddInteraction(client.id, {
+      timestamp: new Date().toISOString(),
+      type: 'Nota',
+      content: `Sugerencia IA aplicada: ${aiSuggestion.recomendacion}. Plan: ${aiSuggestion.planSugerido}, Equipo: ${aiSuggestion.equipoSugerido}`,
+      userId: assignedUser?.id || '1'
+    });
+
+    setAiSuggestion(null);
+    toast.success("Sugerencia aplicada al cliente");
+  };
+
+  const handleWhatsApp = () => {
+    const cleanNumber = client.telefono.replace(/\s/g, '');
+    window.open(`https://wa.me/${cleanNumber}`, '_blank');
+  };
 
   const handleSendProposal = () => {
     toast.success("Propuesta enviada correctamente", {
@@ -95,6 +181,9 @@ export default function ClientDetailView({ client, onClose, onEdit, onOpenChat, 
                   <Badge className={cn("font-black text-[9px] uppercase tracking-widest border-none px-2 py-0.5", statusConfig.bg, statusConfig.color)}>
                     {client.estado}
                   </Badge>
+                  <Badge className={cn("font-black text-[9px] uppercase tracking-widest border-none px-2 py-0.5", getTempColor(client.temperatura))}>
+                    {client.temperatura}
+                  </Badge>
                 </div>
                 <div className="flex items-center gap-3 text-slate-400 font-bold text-xs mt-0.5">
                   <span className="flex items-center gap-1">
@@ -109,9 +198,30 @@ export default function ClientDetailView({ client, onClose, onEdit, onOpenChat, 
                 </div>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose} className="rounded-xl text-white/50 hover:text-white hover:bg-white/10 w-10 h-10">
-              <X className="w-6 h-6" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-xl text-white/50 hover:text-white hover:bg-white/10 w-10 h-10">
+                    <MoreVertical className="w-6 h-6" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-2xl p-2 border-border shadow-xl bg-card min-w-[180px]">
+                  <DropdownMenuItem onClick={() => onEdit(client)} className="rounded-xl font-bold text-xs py-2.5 cursor-pointer text-foreground flex items-center gap-2">
+                    <ExternalLink className="w-4 h-4" /> Editar Datos
+                  </DropdownMenuItem>
+                  <Separator className="my-1" />
+                  <DropdownMenuItem className="rounded-xl font-bold text-xs py-2.5 cursor-pointer text-foreground flex items-center gap-2">
+                    <UserPlus className="w-4 h-4" /> Transferir Asesor
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onDelete(client.id)} className="rounded-xl font-bold text-xs py-2.5 cursor-pointer text-danger hover:bg-danger/10 flex items-center gap-2">
+                    <Trash2 className="w-4 h-4" /> Eliminar Cliente
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button variant="ghost" size="icon" onClick={onClose} className="rounded-xl text-white/50 hover:text-white hover:bg-white/10 w-10 h-10">
+                <X className="w-6 h-6" />
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -160,9 +270,18 @@ export default function ClientDetailView({ client, onClose, onEdit, onOpenChat, 
                     <div className="grid grid-cols-1 gap-4">
                       <div className="p-4 rounded-2xl bg-muted border border-border flex items-center justify-between">
                         <div>
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Equipo Ofrecido</p>
+                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Solución POS Ofrecida</p>
                           <div className="flex items-center gap-2">
                             <Package className="w-4 h-4 text-primary" />
+                            <p className="text-sm font-bold text-foreground">{client.solucionOfrecida || 'Pendiente'}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-muted border border-border flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Equipo Ofrecido</p>
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-secondary" />
                             <p className="text-sm font-bold text-foreground">{client.equipoOfrecido || 'Pendiente'}</p>
                           </div>
                         </div>
@@ -180,14 +299,24 @@ export default function ClientDetailView({ client, onClose, onEdit, onOpenChat, 
                           <p className="text-sm font-bold text-primary">{client.closingProbability}%</p>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4">
                         <div className="p-4 rounded-2xl bg-muted border border-border">
                           <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Registro</p>
-                          <p className="text-sm font-bold text-foreground">{new Date(client.fechaRegistro).toLocaleDateString()}</p>
+                          <p className="text-sm font-bold text-foreground">
+                            {(() => {
+                              const [y, m, d] = client.fechaRegistro.split('T')[0].split('-').map(Number);
+                              return new Date(y, m - 1, d).toLocaleDateString();
+                            })()}
+                          </p>
                         </div>
                         <div className="p-4 rounded-2xl bg-muted border border-border">
                           <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Seguimiento</p>
-                          <p className="text-sm font-bold text-warning">{new Date(client.proximoSeguimiento).toLocaleDateString()}</p>
+                          <p className="text-sm font-bold text-warning">
+                            {(() => {
+                              const [y, m, d] = client.proximoSeguimiento.split('T')[0].split('-').map(Number);
+                              return new Date(y, m - 1, d).toLocaleDateString();
+                            })()}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -247,33 +376,84 @@ export default function ClientDetailView({ client, onClose, onEdit, onOpenChat, 
               {/* Right Column: AI & Actions */}
               <div className="space-y-10">
                 <section>
-                  <div className="bg-slate-950 rounded-[2.5rem] p-8 text-white relative overflow-hidden">
+                  <div className="bg-slate-950 rounded-[2.5rem] p-8 text-white relative overflow-hidden border border-white/5">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full -mr-16 -mt-16 blur-2xl" />
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="p-2 rounded-xl bg-primary/20">
-                        <Sparkles className="w-5 h-5 text-primary" />
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-xl bg-primary/20">
+                          <Sparkles className="w-5 h-5 text-primary" />
+                        </div>
+                        <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">IA Comercial Gemini</span>
                       </div>
-                      <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Smart Recommendation</span>
+                      {isGeneratingAI && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
                     </div>
-                    <p className="text-lg font-black leading-tight mb-6">
-                      {recommendation.recomendar}
-                    </p>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-500 font-bold">Plan Sugerido</span>
-                        <Badge className="bg-primary/10 text-primary border-none font-black">{recommendation.plan}</Badge>
+
+                    {aiSuggestion ? (
+                      <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
+                        <p className="text-sm font-medium leading-relaxed text-slate-300 italic">
+                          "{aiSuggestion.recomendacion}"
+                        </p>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-slate-500 font-black uppercase tracking-widest">Equipo Sugerido</span>
+                            <span className="text-secondary font-black uppercase tracking-widest">{aiSuggestion.equipoSugerido}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-slate-500 font-black uppercase tracking-widest">Plan Sugerido</span>
+                            <span className="text-success font-black uppercase tracking-widest">{aiSuggestion.planSugerido}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-slate-500 font-black uppercase tracking-widest">Próxima Acción</span>
+                            <span className="text-primary font-black uppercase tracking-widest">{aiSuggestion.proximaAccion}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-slate-500 font-black uppercase tracking-widest">Fecha Sugerida</span>
+                            <span className="text-white font-black uppercase tracking-widest">{aiSuggestion.proximaFecha}</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <Button 
+                            onClick={() => setAiSuggestion(null)}
+                            variant="outline"
+                            className="rounded-xl border-white/20 text-white hover:bg-white/10 font-bold text-xs h-10 bg-transparent"
+                          >
+                            Descartar
+                          </Button>
+                          <Button 
+                            onClick={handleApplySuggestion}
+                            className="rounded-xl bg-primary text-white hover:bg-primary/90 font-bold text-xs h-10"
+                          >
+                            Aplicar
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-500 font-bold">Equipamiento</span>
-                        <span className="text-white font-bold">{recommendation.equipos}</span>
+                    ) : (
+                      <div className="space-y-6">
+                        <p className="text-sm text-slate-400 font-medium">
+                          Genera una estrategia de venta personalizada basada en el estado actual del cliente.
+                        </p>
+                        <Button 
+                          onClick={handleGenerateAI}
+                          disabled={isGeneratingAI}
+                          className="w-full rounded-2xl bg-white text-slate-950 hover:bg-slate-100 font-black h-12 shadow-lg shadow-white/5 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                          {isGeneratingAI ? 'Analizando...' : 'Generar Estrategia'}
+                          {!isGeneratingAI && <Sparkles className="w-4 h-4 ml-2" />}
+                        </Button>
                       </div>
-                    </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="p-6 rounded-[2rem] bg-muted border border-border">
+                  <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Acciones Rápidas</h3>
+                  <div className="grid grid-cols-1 gap-3">
                     <Button 
-                      onClick={handleSendProposal}
-                      className="w-full mt-8 rounded-2xl bg-white text-slate-950 hover:bg-slate-100 font-black h-12 shadow-lg shadow-white/5 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                      onClick={handleWhatsApp}
+                      className="w-full rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-black h-12 shadow-lg shadow-[#25D366]/20 transition-all"
                     >
-                      Enviar Propuesta
-                      <ArrowRight className="w-4 h-4 ml-2" />
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      Contactar WhatsApp
                     </Button>
                   </div>
                 </section>
@@ -300,10 +480,6 @@ export default function ClientDetailView({ client, onClose, onEdit, onOpenChat, 
           <div className="flex gap-3">
             <Button variant="outline" className="rounded-2xl border-border font-bold h-12 px-6 text-foreground" onClick={() => onEdit(client)}>
               Editar Datos
-            </Button>
-            <Button variant="outline" className="rounded-2xl border-border font-bold h-12 px-6 text-foreground" onClick={() => onOpenChat(client)}>
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Ver Chat
             </Button>
           </div>
           <Button className="rounded-2xl bg-primary hover:bg-primary/90 text-white font-black h-12 px-10 shadow-xl shadow-primary/20" onClick={onClose}>

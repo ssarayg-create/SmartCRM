@@ -153,17 +153,6 @@ export default function LeadsList({
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="h-8 w-8 text-slate-400 hover:text-primary rounded-xl hover:bg-primary/5" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenChat(client);
-                      }}
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
                       className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted" 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -213,7 +202,10 @@ export default function LeadsList({
                     </span>
                   </div>
                   <span className={cn("text-sm font-black", isUrgent ? "text-rose-500" : "text-foreground")}>
-                    {new Date(client.proximoSeguimiento).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                    {(() => {
+                      const [y, m, d] = client.proximoSeguimiento.split('T')[0].split('-').map(Number);
+                      return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+                    })()}
                   </span>
                 </div>
 

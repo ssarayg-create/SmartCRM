@@ -39,11 +39,28 @@ export default function ClientForm({ open, onOpenChange, onSubmit, initialData, 
     email: '',
     ciudad: 'Bogotá',
     estado: 'Nuevo lead',
+    temperatura: 'Tibio',
     proximoSeguimiento: new Date().toISOString().split('T')[0],
     necesidadDetectada: '',
+    solucionOfrecida: '',
     equipoOfrecido: '',
     presupuestoEstimado: 0
   });
+
+  const LATAM_CITIES = [
+    "Bogotá", "Medellín", "Cali", "Barranquilla", "Cartagena", "Bucaramanga", "Pereira", "Santa Marta",
+    "Ciudad de México", "Guadalajara", "Monterrey", "Puebla", "Querétaro",
+    "Buenos Aires", "Córdoba", "Rosario", "Mendoza",
+    "Santiago", "Valparaíso", "Concepción",
+    "Lima", "Arequipa", "Trujillo",
+    "Quito", "Guayaquil", "Cuenca",
+    "San José", "Panamá", "Guatemala", "San Salvador"
+  ];
+
+  const [citySearch, setCitySearch] = useState('');
+  const filteredCities = LATAM_CITIES.filter(c => 
+    c.toLowerCase().includes(citySearch.toLowerCase())
+  );
 
   useEffect(() => {
     if (initialData) {
@@ -159,13 +176,27 @@ export default function ClientForm({ open, onOpenChange, onSubmit, initialData, 
             </div>
             <div className="space-y-2">
               <Label htmlFor="ciudad" className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">Ciudad</Label>
-              <Input 
-                id="ciudad" 
+              <Select 
                 value={formData.ciudad} 
-                onChange={(e) => setFormData({...formData, ciudad: e.target.value})}
-                className="rounded-2xl bg-muted border-border h-12 focus-visible:ring-primary font-bold text-foreground"
-                placeholder="Ej: Bogotá"
-              />
+                onValueChange={(v) => setFormData({...formData, ciudad: v})}
+              >
+                <SelectTrigger className="rounded-2xl bg-muted border-border h-12 font-bold text-foreground">
+                  <SelectValue placeholder="Seleccionar ciudad" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border shadow-xl bg-card text-foreground max-h-[200px]">
+                  <div className="p-2 sticky top-0 bg-card z-10">
+                    <Input 
+                      placeholder="Buscar ciudad..." 
+                      value={citySearch}
+                      onChange={(e) => setCitySearch(e.target.value)}
+                      className="h-8 text-xs rounded-lg"
+                    />
+                  </div>
+                  {filteredCities.map((city) => (
+                    <SelectItem key={city} value={city}>{city}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">Estado Comercial</Label>
@@ -187,6 +218,22 @@ export default function ClientForm({ open, onOpenChange, onSubmit, initialData, 
               </Select>
             </div>
             <div className="space-y-2">
+              <Label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">Temperatura</Label>
+              <Select 
+                value={formData.temperatura} 
+                onValueChange={(v) => setFormData({...formData, temperatura: v as any})}
+              >
+                <SelectTrigger className="rounded-2xl bg-muted border-border h-12 font-bold text-foreground">
+                  <SelectValue placeholder="Seleccionar temperatura" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border shadow-xl bg-card text-foreground">
+                  <SelectItem value="Frío">❄️ Frío</SelectItem>
+                  <SelectItem value="Tibio">🔥 Tibio</SelectItem>
+                  <SelectItem value="Caliente">🌋 Caliente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="proximoSeguimiento" className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">Próximo Seguimiento</Label>
               <Input 
                 id="proximoSeguimiento" 
@@ -194,6 +241,16 @@ export default function ClientForm({ open, onOpenChange, onSubmit, initialData, 
                 value={formData.proximoSeguimiento} 
                 onChange={(e) => setFormData({...formData, proximoSeguimiento: e.target.value})}
                 className="rounded-2xl bg-muted border-border h-12 focus-visible:ring-primary font-bold text-foreground"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="solucionOfrecida" className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">Solución POS Ofrecida</Label>
+              <Input 
+                id="solucionOfrecida" 
+                value={formData.solucionOfrecida} 
+                onChange={(e) => setFormData({...formData, solucionOfrecida: e.target.value})}
+                className="rounded-2xl bg-muted border-border h-12 focus-visible:ring-primary font-bold text-foreground"
+                placeholder="Ej: Sistema Cloud Restaurantes"
               />
             </div>
             <div className="space-y-2">

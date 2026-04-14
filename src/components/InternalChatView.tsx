@@ -1,5 +1,31 @@
 import React, { useState } from 'react';
-import { Send, Search, User, Users, Info, MoreVertical, Phone, Video, Paperclip, Smile, CheckCheck, MessageSquare, ChevronLeft } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import { 
+  Send, 
+  Search, 
+  User, 
+  Users, 
+  Info, 
+  MoreVertical, 
+  Phone, 
+  Video, 
+  Paperclip, 
+  Smile, 
+  CheckCheck, 
+  MessageSquare, 
+  ChevronLeft,
+  Trash2,
+  BellOff,
+  Reply,
+  Image as ImageIcon,
+  FileText,
+  X
+} from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +35,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { InternalChat, User as UserType, Message } from '../types';
 import { USERS, INTERNAL_CHATS } from '../constants';
+import { toast } from 'sonner';
 
 interface InternalChatViewProps {
   currentUser: UserType;
@@ -20,8 +47,22 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
   const [chats, setChats] = useState<InternalChat[]>(initialChats);
   const [selectedChatId, setSelectedChatId] = useState<string>(initialChats[0]?.id || '');
   const [messageText, setMessageText] = useState('');
+  const [chatSearch, setChatSearch] = useState('');
   const [showInfo, setShowInfo] = useState(false);
   const [showList, setShowList] = useState(true);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+
+  // Priorizar chats activos (con mensajes más recientes)
+  const sortedChats = [...chats].sort((a, b) => {
+    const timeA = a.messages.length > 0 ? new Date(a.messages[a.messages.length - 1].timestamp).getTime() : 0;
+    const timeB = b.messages.length > 0 ? new Date(b.messages[b.messages.length - 1].timestamp).getTime() : 0;
+    return timeB - timeA;
+  });
+
+  const filteredChats = sortedChats.filter(c => 
+    c.name.toLowerCase().includes(chatSearch.toLowerCase()) ||
+    c.lastMessage.toLowerCase().includes(chatSearch.toLowerCase())
+  );
 
   const selectedChat = chats.find(c => c.id === selectedChatId) || chats[0];
 
@@ -52,7 +93,7 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
     const newMessage: Message = {
       id: Math.random().toString(36).substr(2, 9),
       senderId: currentUser.id,
-      text: messageText,
+      text: replyingTo ? `> ${replyingTo.text}\n\n${messageText}` : messageText,
       timestamp: new Date().toISOString()
     };
 
@@ -71,6 +112,27 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
     setChats(updatedChats);
     onUpdateChats?.(updatedChats);
     setMessageText('');
+    setReplyingTo(null);
+  };
+
+  const handleDeleteChat = (id: string) => {
+    const updated = chats.filter(c => c.id !== id);
+    setChats(updated);
+    if (selectedChatId === id) setSelectedChatId(updated[0]?.id || '');
+    onUpdateChats?.(updated);
+    toast.info('Chat eliminado');
+  };
+
+  const handleMuteChat = (id: string) => {
+    toast.info('Chat silenciado por 8 horas');
+  };
+
+  const handleAttach = (type: 'image' | 'file') => {
+    toast.success(`${type === 'image' ? 'Imagen' : 'Archivo'} adjuntado (simulado)`);
+  };
+
+  const handleEmoji = () => {
+    setMessageText(prev => prev + ' 😊');
   };
 
   const getParticipantInfo = (userId: string) => {
@@ -99,14 +161,16 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input 
-              placeholder="Buscar o empezar un nuevo chat" 
+              placeholder="Buscar chats..." 
+              value={chatSearch}
+              onChange={(e) => setChatSearch(e.target.value)}
               className="pl-12 h-12 rounded-2xl bg-muted border-none text-sm font-medium text-foreground focus-visible:ring-1 focus-visible:ring-primary"
             />
           </div>
         </div>
         <ScrollArea className="flex-1 bg-card">
           <div className="divide-y divide-border/50">
-            {chats.map((chat) => (
+            {filteredChats.map((chat) => (
               <button
                 key={chat.id}
                 onClick={() => handleSelectChat(chat.id)}
@@ -169,14 +233,34 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
               <p className="text-[10px] font-bold text-success uppercase tracking-widest">En línea</p>
             </div>
           </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground hover:text-primary">
-              <Search className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground hover:text-primary">
-              <MoreVertical className="w-5 h-5" />
-            </Button>
-          </div>
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground hover:text-primary">
+                <Search className="w-5 h-5" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground hover:text-primary">
+                    <MoreVertical className="w-5 h-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-2xl p-2 border-border shadow-xl bg-card">
+                  <DropdownMenuItem 
+                    className="rounded-xl font-bold text-xs py-2.5 cursor-pointer"
+                    onClick={() => handleMuteChat(selectedChat.id)}
+                  >
+                    <BellOff className="w-4 h-4 mr-2" />
+                    Silenciar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className="rounded-xl font-bold text-xs py-2.5 cursor-pointer text-danger focus:text-danger"
+                    onClick={() => handleDeleteChat(selectedChat.id)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Eliminar chat
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
         </div>
 
         {/* Mensajes con fondo tipo WhatsApp */}
@@ -189,7 +273,7 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
                   
                   return (
                     <div key={msg.id} className={cn(
-                      "flex w-full mb-2",
+                      "flex w-full mb-2 group",
                       isMe ? "justify-end" : "justify-start"
                     )}>
                       <div className={cn(
@@ -203,9 +287,14 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
                             {getParticipantInfo(msg.senderId)?.name}
                           </p>
                         )}
-                        <p className="text-sm font-medium leading-relaxed">
-                          {msg.text}
-                        </p>
+                        <div className="text-sm font-medium leading-relaxed whitespace-pre-wrap">
+                          {msg.text.startsWith('> ') ? (
+                            <div className="mb-2 p-2 bg-black/10 rounded-lg border-l-4 border-black/20 italic text-xs">
+                              {msg.text.split('\n\n')[0].replace('> ', '')}
+                            </div>
+                          ) : null}
+                          {msg.text.includes('\n\n') ? msg.text.split('\n\n')[1] : msg.text}
+                        </div>
                         <div className={cn(
                           "flex items-center justify-end gap-1 mt-1",
                           isMe ? "text-white/70" : "text-muted-foreground"
@@ -215,6 +304,17 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
                           </span>
                           {isMe && <CheckCheck className="w-3 h-3" />}
                         </div>
+
+                        {/* Botón de respuesta rápida al hover */}
+                        <button 
+                          onClick={() => setReplyingTo(msg)}
+                          className={cn(
+                            "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-card border border-border rounded-full shadow-lg text-muted-foreground hover:text-primary",
+                            isMe ? "-left-10" : "-right-10"
+                          )}
+                        >
+                          <Reply className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -223,34 +323,61 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
             </ScrollArea>
 
             {/* Input de Mensaje tipo WhatsApp */}
-            <div className="p-4 bg-card border-t border-border flex items-center gap-3">
-              <div className="flex gap-1">
-                <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground">
-                  <Smile className="w-6 h-6" />
-                </Button>
-                <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground">
-                  <Paperclip className="w-6 h-6" />
+            <div className="p-4 bg-card border-t border-border flex flex-col gap-2">
+              {replyingTo && (
+                <div className="flex items-center justify-between bg-muted p-3 rounded-xl border-l-4 border-primary animate-in slide-in-from-bottom-2">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-primary uppercase tracking-widest">Respondiendo a</span>
+                    <p className="text-xs font-bold text-muted-foreground truncate max-w-[400px]">{replyingTo.text}</p>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full" onClick={() => setReplyingTo(null)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground" onClick={handleEmoji}>
+                    <Smile className="w-6 h-6" />
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground">
+                        <Paperclip className="w-6 h-6" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="rounded-2xl p-2 border-border shadow-xl bg-card">
+                      <DropdownMenuItem className="rounded-xl font-bold text-xs py-2.5 cursor-pointer" onClick={() => handleAttach('image')}>
+                        <ImageIcon className="w-4 h-4 mr-2 text-primary" />
+                        Imagen
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="rounded-xl font-bold text-xs py-2.5 cursor-pointer" onClick={() => handleAttach('file')}>
+                        <FileText className="w-4 h-4 mr-2 text-primary" />
+                        Archivo
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="flex-1 relative">
+                  <Input 
+                    placeholder="Escribe un mensaje..."
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    className="h-12 px-6 rounded-2xl bg-muted border-none shadow-none focus-visible:ring-0 font-medium text-foreground text-sm"
+                  />
+                </div>
+                <Button 
+                  onClick={handleSendMessage}
+                  size="icon"
+                  className={cn(
+                    "h-12 w-12 rounded-full shadow-lg transition-all duration-300",
+                    messageText.trim() ? "bg-primary text-white scale-100" : "bg-muted text-muted-foreground scale-90"
+                  )}
+                >
+                  <Send className="w-5 h-5" />
                 </Button>
               </div>
-              <div className="flex-1 relative">
-                <Input 
-                  placeholder="Escribe un mensaje..."
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  className="h-12 px-6 rounded-2xl bg-muted border-none shadow-none focus-visible:ring-0 font-medium text-foreground text-sm"
-                />
-              </div>
-              <Button 
-                onClick={handleSendMessage}
-                size="icon"
-                className={cn(
-                  "h-12 w-12 rounded-full shadow-lg transition-all duration-300",
-                  messageText.trim() ? "bg-primary text-white scale-100" : "bg-muted text-muted-foreground scale-90"
-                )}
-              >
-                <Send className="w-5 h-5" />
-              </Button>
             </div>
           </div>
 

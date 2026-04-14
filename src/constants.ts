@@ -6,50 +6,54 @@ export const USERS: User[] = [
     name: "Carlos Rodríguez",
     email: "carlos@smartcrm.com",
     role: "Admin",
-    plan: "Premium",
+    plan: "Macro",
     salesCount: 45,
     closedRevenue: 12500000,
-    avatar: "CR"
+    points: 4500,
+    avatar: "CR",
+    hasSeenOnboarding: true,
+    achievements: [
+      { id: "a1", title: "Cerrador Maestro", description: "Cierra 10 ventas en un mes", icon: "🏆", unlockedAt: "2024-03-01" },
+      { id: "a2", title: "Madrugador", description: "Primer contacto antes de las 8 AM", icon: "☀️", unlockedAt: "2024-03-15" }
+    ],
+    medals: [
+      { id: "m1", type: "oro", title: "Top Ventas Marzo", date: "2024-03-31" },
+      { id: "m2", type: "plata", title: "Eficiencia de Cierre", date: "2024-02-28" }
+    ]
   },
   {
     id: "u2",
     name: "Ana Martínez",
     email: "ana@smartcrm.com",
     role: "Vendedor",
-    plan: "Premium",
+    plan: "Pyme",
     salesCount: 32,
     closedRevenue: 8400000,
-    avatar: "AM"
+    points: 3200,
+    avatar: "AM",
+    hasSeenOnboarding: true,
+    achievements: [
+      { id: "a3", title: "Persistente", description: "Realiza 5 seguimientos a un mismo lead", icon: "🔥", unlockedAt: "2024-04-01" }
+    ],
+    medals: [
+      { id: "m3", type: "plata", title: "Top Ventas Marzo", date: "2024-03-31" }
+    ]
   },
   {
     id: "u3",
     name: "Juan Pérez",
     email: "juan@smartcrm.com",
     role: "Vendedor",
-    plan: "Premium",
+    plan: "Pyme",
     salesCount: 28,
     closedRevenue: 6200000,
-    avatar: "JP"
-  },
-  {
-    id: "u4",
-    name: "Elena Gómez",
-    email: "elena@smartcrm.com",
-    role: "Vendedor",
-    plan: "Profesional",
-    salesCount: 15,
-    closedRevenue: 3200000,
-    avatar: "EG"
-  },
-  {
-    id: "u5",
-    name: "Roberto Díaz",
-    email: "roberto@smartcrm.com",
-    role: "Vendedor",
-    plan: "Básico",
-    salesCount: 10,
-    closedRevenue: 1800000,
-    avatar: "RD"
+    points: 2800,
+    avatar: "JP",
+    hasSeenOnboarding: true,
+    achievements: [],
+    medals: [
+      { id: "m4", type: "bronce", title: "Top Ventas Marzo", date: "2024-03-31" }
+    ]
   }
 ];
 
@@ -103,25 +107,40 @@ export const PLANS = [
     priceCOP: 0,
     features: ["Hasta 50 clientes", "Pipeline básico", "Dashboard simple"],
     buttonText: "Plan Actual",
+    isCurrent: false
+  },
+  {
+    id: "pyme",
+    name: "Pyme" as PlanType,
+    priceUSD: 25,
+    priceCOP: 90000,
+    features: ["Clientes ilimitados", "Pipeline avanzado", "Dashboard con métricas", "IA Comercial Básica", "Soporte estándar"],
+    buttonText: "Actualizar a Pyme",
+    isCurrent: false
+  },
+  {
+    id: "macro",
+    name: "Macro" as PlanType,
+    priceUSD: 45,
+    priceCOP: 150000,
+    features: ["Todo lo anterior +", "IA Comercial Avanzada", "Integración WhatsApp", "Automatizaciones", "Soporte prioritario"],
+    buttonText: "Actualizar a Macro",
     isCurrent: true
+  }
+];
+
+export const TIENDANA_HARDWARE = [
+  {
+    id: "combo-1",
+    name: "Combo Tiendana Pro",
+    price: 1820000,
+    description: "Ideal para restaurantes y minimarkets. Incluye impresora, cajón y soporte."
   },
   {
-    id: "pro",
-    name: "Profesional" as PlanType,
-    priceUSD: 19,
-    priceCOP: 70000,
-    features: ["Clientes ilimitados", "Pipeline avanzado", "Dashboard con métricas", "Recordatorios", "Soporte básico"],
-    buttonText: "Actualizar a Pro",
-    isCurrent: false
-  },
-  {
-    id: "premium",
-    name: "Premium" as PlanType,
-    priceUSD: 39,
-    priceCOP: 130000,
-    features: ["Todo lo anterior +", "Integración WhatsApp", "Integración Meta Ads", "Automatizaciones", "Insights inteligentes", "Soporte prioritario"],
-    buttonText: "Actualizar a Premium",
-    isCurrent: false
+    id: "combo-2",
+    name: "Combo Tiendana Elite",
+    price: 1990000,
+    description: "Máximo rendimiento. Todo-en-uno con pantalla táctil y periféricos premium."
   }
 ];
 
@@ -148,10 +167,12 @@ export const INITIAL_CLIENTS: Client[] = [
     email: "juan.valdez@cafe.com",
     ciudad: "Bogotá",
     estado: "Venta cerrada",
+    temperatura: "Caliente",
     fechaRegistro: "2024-01-10",
     ultimoContacto: "2024-04-10",
     proximoSeguimiento: "2024-04-15",
     necesidadDetectada: "Control de ventas y facturación electrónica",
+    solucionOfrecida: "Sistema POS Cloud con Facturación Electrónica",
     equipoOfrecido: "Combo POS Premium + 3 Tablets",
     presupuestoEstimado: 4500000,
     assignedTo: "u1",
@@ -171,10 +192,12 @@ export const INITIAL_CLIENTS: Client[] = [
     email: "marta@minimarket.com",
     ciudad: "Medellín",
     estado: "Negociación",
+    temperatura: "Tibio",
     fechaRegistro: "2024-02-15",
     ultimoContacto: "2024-04-12",
     proximoSeguimiento: "2024-04-14",
     necesidadDetectada: "Control de inventario y proveedores",
+    solucionOfrecida: "Módulo de Inventarios Avanzado",
     equipoOfrecido: "Software POS + Lector de código de barras",
     presupuestoEstimado: 1200000,
     assignedTo: "u2",
@@ -193,10 +216,12 @@ export const INITIAL_CLIENTS: Client[] = [
     email: "sofia@moda.com",
     ciudad: "Barranquilla",
     estado: "Envío de propuesta",
+    temperatura: "Frío",
     fechaRegistro: "2024-03-10",
     ultimoContacto: "2024-04-11",
     proximoSeguimiento: "2024-04-14",
     necesidadDetectada: "Gestión de tallas y colores",
+    solucionOfrecida: "Software POS para Retail",
     equipoOfrecido: "Combo POS Básico + Impresora",
     presupuestoEstimado: 2800000,
     assignedTo: "u1",
@@ -213,10 +238,12 @@ export const INITIAL_CLIENTS: Client[] = [
     email: "maluma@papi.com",
     ciudad: "Medellín",
     estado: "Demo del sistema POS",
+    temperatura: "Tibio",
     fechaRegistro: "2024-03-18",
     ultimoContacto: "2024-04-13",
     proximoSeguimiento: "2024-04-15",
     necesidadDetectada: "Control de inventario de licores y comandas",
+    solucionOfrecida: "Módulo de Comandas para Bares",
     equipoOfrecido: "Software POS + 2 Comanderos",
     presupuestoEstimado: 3500000,
     assignedTo: "u2",
@@ -235,10 +262,12 @@ export const INITIAL_CLIENTS: Client[] = [
     email: "camilo@tribu.com",
     ciudad: "Montería",
     estado: "Venta cerrada",
+    temperatura: "Caliente",
     fechaRegistro: "2024-01-25",
     ultimoContacto: "2024-04-05",
     proximoSeguimiento: "2024-04-30",
     necesidadDetectada: "Facturación rápida",
+    solucionOfrecida: "Sistema POS All-in-One",
     equipoOfrecido: "Combo POS All-in-One",
     presupuestoEstimado: 2200000,
     assignedTo: "u3",
@@ -250,28 +279,28 @@ export const INITIAL_CLIENTS: Client[] = [
 
 export const RECOMMENDATIONS: Record<string, Recommendation> = {
   "Restaurante": {
-    recomendar: "Plan Restaurante Pro + Comandero Móvil",
-    plan: "Profesional",
-    equipos: "3 Tablets + 1 Impresora Térmica"
+    recomendar: "Plan Pyme + Combo Tiendana Pro",
+    plan: "Pyme",
+    equipos: "Combo Tiendana Pro (1.820.000)"
   },
-  "Bar": {
-    recomendar: "Plan Bar Nightlife + Control de Inventario",
-    plan: "Profesional",
-    equipos: "2 Tablets + 1 Lector de QR"
+  "Cafetería": {
+    recomendar: "Plan Pyme + Combo Tiendana Pro",
+    plan: "Pyme",
+    equipos: "Combo Tiendana Pro (1.820.000)"
   },
   "Minimarket": {
-    recomendar: "Plan Retail Express + Lector de Código de Barras",
+    recomendar: "Plan Macro + Combo Tiendana Elite",
+    plan: "Macro",
+    equipos: "Combo Tiendana Elite (1.990.000)"
+  },
+  "Tienda de ropa": {
+    recomendar: "Plan Pyme + Combo Tiendana Pro",
+    plan: "Pyme",
+    equipos: "Combo Tiendana Pro (1.820.000)"
+  },
+  "Otros": {
+    recomendar: "Plan Básico + Software Solo",
     plan: "Básico",
-    equipos: "1 PC + 1 Lector + 1 Cajón Monedero"
-  },
-  "Ferretería": {
-    recomendar: "Plan Industrial + Gestión de Proveedores",
-    plan: "Premium",
-    equipos: "2 PCs + 2 Lectores de largo alcance"
-  },
-  "Otro": {
-    recomendar: "Plan Flexible + Consultoría Personalizada",
-    plan: "Profesional",
-    equipos: "A definir según necesidad"
+    equipos: "Solo Software"
   }
 };

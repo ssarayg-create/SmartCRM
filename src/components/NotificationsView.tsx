@@ -40,11 +40,11 @@ export default function NotificationsView({ clients, onViewLead, onNavigateToAna
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [notifications, setNotifications] = useState(() => 
-    clients
+  const [notifications, setNotifications] = useState(() => {
+    const followupNotifs = clients
       .filter(c => new Date(c.proximoSeguimiento) <= today && c.estado !== 'Venta cerrada')
       .map(c => ({
-        id: c.id,
+        id: `followup-${c.id}`,
         title: c.nombreNegocio,
         description: `Seguimiento pendiente con ${c.nombreContacto}`,
         time: 'Hoy',
@@ -52,8 +52,27 @@ export default function NotificationsView({ clients, onViewLead, onNavigateToAna
         priority: new Date(c.proximoSeguimiento) < today ? 'high' : 'medium',
         read: false,
         client: c
-      }))
-  );
+      }));
+
+    const stagnantNotifs = clients
+      .filter(c => {
+        const lastContact = new Date(c.ultimoContacto);
+        const diffDays = Math.floor((today.getTime() - lastContact.getTime()) / (1000 * 3600 * 24));
+        return diffDays >= 7 && c.estado !== 'Venta cerrada';
+      })
+      .map(c => ({
+        id: `stagnant-${c.id}`,
+        title: c.nombreNegocio,
+        description: `Cliente sin contacto hace más de 7 días`,
+        time: 'Alerta',
+        type: 'stagnant',
+        priority: 'high',
+        read: false,
+        client: c
+      }));
+
+    return [...followupNotifs, ...stagnantNotifs].sort((a, b) => (a.priority === 'high' ? -1 : 1));
+  });
 
   const handleMarkAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
@@ -102,9 +121,11 @@ export default function NotificationsView({ clients, onViewLead, onNavigateToAna
                       <div className="relative shrink-0">
                         <div className={cn(
                           "w-14 h-14 rounded-full flex items-center justify-center shadow-sm transition-transform group-hover:scale-105",
+                          notif.type === 'stagnant' ? "bg-warning/10 text-warning" : 
                           notif.priority === 'high' ? "bg-danger/10 text-danger" : "bg-primary/10 text-primary"
                         )}>
-                          {notif.priority === 'high' ? <AlertCircle className="w-7 h-7" /> : <UserIcon className="w-7 h-7" />}
+                          {notif.type === 'stagnant' ? <Clock className="w-7 h-7" /> : 
+                           notif.priority === 'high' ? <AlertCircle className="w-7 h-7" /> : <UserIcon className="w-7 h-7" />}
                         </div>
                         {!notif.read && (
                           <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full border-2 border-card" />
@@ -135,13 +156,25 @@ export default function NotificationsView({ clients, onViewLead, onNavigateToAna
                         <div className="flex items-center gap-3 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button 
                             size="sm" 
-                            className="bg-primary hover:bg-primary/90 text-white h-8 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                            className="bg-success hover:bg-success/90 text-white h-8 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`https://wa.me/${notif.client.telefono.replace(/\D/g, '')}`, '_blank');
+                            }}
+                          >
+                            <Phone className="w-3 h-3" />
+                            Contactar
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            className="bg-primary hover:bg-primary/90 text-white h-8 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
                             onClick={(e) => {
                               e.stopPropagation();
                               onViewLead(notif.client);
                             }}
                           >
-                            Contactar Ahora
+                            <Calendar className="w-3 h-3" />
+                            Agendar
                           </Button>
                           <Button 
                             variant="outline" 

@@ -26,7 +26,12 @@ interface AnalyticsViewProps {
   clients: Client[];
 }
 
-const COLORS = ['#2563eb', '#7c3aed', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
+const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
+const GRADIENTS = [
+  { id: 'colorBlue', color: '#3b82f6' },
+  { id: 'colorPurple', color: '#8b5cf6' },
+  { id: 'colorGreen', color: '#10b981' },
+];
 
 export default function AnalyticsView({ clients }: AnalyticsViewProps) {
   const [dateRange, setDateRange] = useState({
@@ -196,12 +201,19 @@ export default function AnalyticsView({ clients }: AnalyticsViewProps) {
           <CardContent className="p-8 h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={businessTypeData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <defs>
+                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
                 <XAxis 
                   dataKey="name" 
                   axisLine={false} 
                   tickLine={false} 
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontWeight: 800 }} 
+                  dy={10}
                 />
                 <YAxis 
                   axisLine={false} 
@@ -209,15 +221,23 @@ export default function AnalyticsView({ clients }: AnalyticsViewProps) {
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontWeight: 800 }} 
                 />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '16px', border: '1px solid hsl(var(--border))', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', color: 'hsl(var(--foreground))' }}
-                  itemStyle={{ color: 'hsl(var(--foreground))' }}
-                  cursor={{ fill: 'hsl(var(--muted) / 0.5)' }}
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))', 
+                    borderRadius: '20px', 
+                    border: '1px solid hsl(var(--border))', 
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.15)', 
+                    padding: '12px 16px'
+                  }}
+                  itemStyle={{ fontWeight: 800, fontSize: '12px' }}
+                  labelStyle={{ fontWeight: 900, marginBottom: '4px', color: 'hsl(var(--primary))', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em' }}
+                  cursor={{ fill: 'hsl(var(--muted) / 0.3)', radius: 8 }}
                 />
                 <Bar 
                   dataKey="value" 
-                  fill="hsl(var(--primary))" 
-                  radius={[8, 8, 0, 0]} 
-                  barSize={40}
+                  fill="url(#barGradient)" 
+                  radius={[12, 12, 4, 4]} 
+                  barSize={45}
+                  animationDuration={1500}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -235,20 +255,21 @@ export default function AnalyticsView({ clients }: AnalyticsViewProps) {
               <AreaChart data={activityData}>
                 <defs>
                   <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
                 <XAxis 
                   dataKey="name" 
                   axisLine={false} 
                   tickLine={false} 
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontWeight: 800 }} 
+                  dy={10}
                 />
                 <YAxis 
                   axisLine={false} 
@@ -256,24 +277,33 @@ export default function AnalyticsView({ clients }: AnalyticsViewProps) {
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontWeight: 800 }} 
                 />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '16px', border: '1px solid hsl(var(--border))', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', color: 'hsl(var(--foreground))' }}
-                  itemStyle={{ color: 'hsl(var(--foreground))' }}
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))', 
+                    borderRadius: '20px', 
+                    border: '1px solid hsl(var(--border))', 
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+                    padding: '12px 16px'
+                  }}
+                  itemStyle={{ fontWeight: 800, fontSize: '12px' }}
+                  labelStyle={{ fontWeight: 900, marginBottom: '4px', color: 'hsl(var(--primary))', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em' }}
                 />
                 <Area 
                   type="monotone" 
                   dataKey="leads" 
-                  stroke="hsl(var(--primary))" 
+                  stroke="#3b82f6" 
                   strokeWidth={4}
                   fillOpacity={1} 
                   fill="url(#colorLeads)" 
+                  animationDuration={2000}
                 />
                 <Area 
                   type="monotone" 
                   dataKey="sales" 
-                  stroke="hsl(var(--success))" 
+                  stroke="#10b981" 
                   strokeWidth={4}
                   fillOpacity={1} 
                   fill="url(#colorSales)" 
+                  animationDuration={2500}
                 />
               </AreaChart>
             </ResponsiveContainer>

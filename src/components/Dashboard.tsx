@@ -13,7 +13,11 @@ import {
   Lightbulb,
   Trophy,
   BarChart3,
-  ChevronDown
+  ChevronDown,
+  Download,
+  Loader2,
+  TrendingDown,
+  DollarSign
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -40,6 +44,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { USERS } from '../constants';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
+import { toast } from 'sonner';
 
 interface DashboardProps {
   clients: Client[];
@@ -49,6 +56,7 @@ type DateRange = 'today' | 'week' | 'month' | 'all';
 
 export default function Dashboard({ clients }: DashboardProps) {
   const [range, setRange] = useState<DateRange>('all');
+  const [isExporting, setIsExporting] = useState(false);
 
   const filteredClients = useMemo(() => {
     const now = new Date();
@@ -81,6 +89,134 @@ export default function Dashboard({ clients }: DashboardProps) {
   const avgSaleValue = wonLeads > 0 
     ? (filteredClients.filter(c => c.estado === 'Venta cerrada').reduce((acc, c) => acc + c.presupuestoEstimado, 0) / wonLeads).toLocaleString()
     : 0;
+
+  // Smart Metrics
+  const now = new Date();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 7);
+  
+  const threeDaysAgo = new Date(now);
+  threeDaysAgo.setDate(now.getDate() - 3);
+
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  const newLeadsCount = clients.filter(c => new Date(c.fechaRegistro) >= sevenDaysAgo).length;
+  
+  const atRiskLeads = clients.filter(c => {
+    const lastContact = new Date(c.ultimoContacto);
+    return c.estado !== 'Venta cerrada' && lastContact < threeDaysAgo;
+  });
+
+  const monthlySales = clients.filter(c => {
+    const regDate = new Date(c.fechaRegistro);
+    return c.estado === 'Venta cerrada' && regDate.getMonth() === currentMonth && regDate.getFullYear() === currentYear;
+  });
+
+  const monthlyRevenue = monthlySales.reduce((acc, c) => acc + c.presupuestoEstimado, 0);
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'SmartCRM';
+      workbook.lastModifiedBy = 'SmartCRM';
+      workbook.created = new Date();
+      
+      const sheet = workbook.addWorksheet('Reporte de Ventas');
+
+      // Estilos de colores
+      const primaryColor = '2563EB'; // Blue-600
+      const secondaryColor = 'F1F5F9'; // Slate-100
+      const textColor = '0F172A'; // Slate-900
+
+      // Título del Reporte
+      sheet.mergeCells('A1:H2');
+      const titleCell = sheet.getCell('A1');
+      titleCell.value = 'REPORTE ESTRATÉGICO DE VENTAS - SMARTCRM';
+      titleCell.font = { name: 'Inter', size: 16, bold: true, color: { argb: 'FFFFFF' } };
+      titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: primaryColor } };
+
+      // Fecha de generación
+      sheet.mergeCells('A3:H3');
+      const dateCell = sheet.getCell('A3');
+      dateCell.value = `Generado el: ${new Date().toLocaleString()}`;
+      dateCell.font = { italic: true, size: 10 };
+      dateCell.alignment = { horizontal: 'right' };
+
+      // Espacio
+      sheet.addRow([]);
+
+      // Resumen Ejecutivo (Smart Cards)
+      sheet.addRow(['RESUMEN EJECUTIVO']).font = { bold: true, size: 12 };
+      sheet.addRow(['Métrica', 'Valor', 'Estado']);
+      
+      const summaryData = [
+        ['Leads Nuevos (7d)', newLeadsCount, 'Activo'],
+        ['Oportunidades en Riesgo', atRiskLeads.length, 'Atención Requerida'],
+        ['Ventas del Mes', monthlySales.length, 'En Progreso'],
+        ['Ingresos del Mes', `$${monthlyRevenue.toLocaleString()}`, 'Meta'],
+        ['Tasa de Conversión', `${conversionRate}%`, 'Rendimiento']
+      ];
+
+      summaryData.forEach((row, i) => {
+        const r = sheet.addRow(row);
+        if (row[2] === 'Atención Requerida') {
+          r.getCell(3).font = { color: { argb: 'EF4444' }, bold: true };
+        }
+      });
+
+      sheet.addRow([]);
+
+      // Tabla de Datos de Clientes
+      sheet.addRow(['DETALLE DE CLIENTES Y NEGOCIOS']).font = { bold: true, size: 12 };
+      const headerRow = sheet.addRow([
+        'ID', 
+        'Negocio', 
+        'Contacto', 
+        'Tipo', 
+        'Ciudad', 
+        'Estado', 
+        'Presupuesto', 
+        'Probabilidad'
+      ]);
+
+      headerRow.eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'E2E8F0' } };
+        cell.font = { bold: true };
+        cell.border = { bottom: { style: 'thin' } };
+      });
+
+      clients.forEach(client => {
+        sheet.addRow([
+          client.id,
+          client.nombreNegocio,
+          client.nombreContacto,
+          client.tipoNegocio,
+          client.ciudad,
+          client.estado,
+          client.presupuestoEstimado,
+          `${client.closingProbability}%`
+        ]);
+      });
+
+      // Ajustar anchos de columna
+      sheet.columns.forEach(column => {
+        column.width = 20;
+      });
+
+      // Descargar archivo
+      const buffer = await workbook.xlsx.writeBuffer();
+      saveAs(new Blob([buffer]), `SmartCRM_Reporte_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success('Reporte exportado correctamente');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Error al exportar el reporte');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const rangeLabels: Record<DateRange, string> = {
     today: 'Hoy',
@@ -144,6 +280,19 @@ export default function Dashboard({ clients }: DashboardProps) {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          <Button
+            onClick={handleExport}
+            disabled={isExporting}
+            className="bg-primary hover:bg-primary/90 text-white rounded-2xl px-6 h-12 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 transition-all active:scale-95"
+          >
+            {isExporting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
+            Exportar Reporte
+          </Button>
+
           <div className="hidden lg:flex items-center gap-3 bg-card px-5 py-2.5 rounded-2xl border border-border shadow-sm h-12">
             <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Sincronizado</span>
@@ -175,6 +324,45 @@ export default function Dashboard({ clients }: DashboardProps) {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Smart Cards Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="glass-card border-none bg-primary/5 border-l-4 border-l-primary">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="p-3 bg-primary/10 rounded-2xl">
+              <Users className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Leads Nuevos (7d)</p>
+              <h4 className="text-2xl font-black text-foreground">{newLeadsCount}</h4>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card border-none bg-danger/5 border-l-4 border-l-danger">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="p-3 bg-danger/10 rounded-2xl">
+              <AlertCircle className="w-6 h-6 text-danger" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Oportunidades en Riesgo</p>
+              <h4 className="text-2xl font-black text-foreground">{atRiskLeads.length}</h4>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card border-none bg-success/5 border-l-4 border-l-success">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="p-3 bg-success/10 rounded-2xl">
+              <DollarSign className="w-6 h-6 text-success" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Ventas del Mes</p>
+              <h4 className="text-2xl font-black text-foreground">${(monthlyRevenue / 1000000).toFixed(1)}M</h4>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
