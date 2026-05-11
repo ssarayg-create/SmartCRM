@@ -124,3 +124,37 @@
   --sidebar-border: rgba(255, 255, 255, 0.05);
   --sidebar-accent: rgba(255, 255, 255, 0.05);
 }
+
+/* ===== NUEVO: CORREGIR MODO OSCURO ===== */
+.dark .glass-card {
+  @apply bg-slate-900/40 border-white/5 shadow-[0_1px_3px_rgba(0,0,0,0.3),0_10px_40px_-12px_rgba(0,0,0,0.5)] backdrop-blur-xl;
+}
+
+.dark .glass-card:hover {
+  @apply border-white/10 bg-slate-900/60 shadow-primary/10;
+}
+
+.dark .sidebar-item:hover {
+  @apply bg-white/5;
+}
+
+.dark .sidebar-item.active {
+  @apply bg-primary/20 text-primary;
+}
+
+.dark .status-badge {
+  background-color: var(--primary);
+  opacity: 0.8;
+}
+
+.text-kpi {
+  @apply text-slate-900 dark:text-white font-black;
+}
+
+.text-kpi-value {
+  @apply text-slate-900 dark:text-white font-bold;
+}
+
+.table-text {
+  @apply text-slate-600 dark:text-slate-300 font-medium;
+}

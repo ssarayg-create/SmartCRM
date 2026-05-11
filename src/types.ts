@@ -7,12 +7,16 @@ export type BusinessType =
   | "Otros";
 
 export type LeadStatus = 
-  | "Nuevo lead" 
+  | "Nuevos prospectos" 
   | "Contacto inicial" 
-  | "Demo del sistema POS"
-  | "Envío de propuesta" 
+  | "Presentación"
   | "Negociación"
-  | "Venta cerrada";
+  | "Propuesta enviada"
+  | "Ganado"
+  | "Perdido"
+  | "Cerrado"
+  | "Demo"
+  | "Nuevo lead";
 
 export type Role = "Admin" | "Vendedor";
 export type PlanType = "Básico" | "Pyme" | "Macro";
@@ -37,6 +41,8 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
+  status?: 'Activo' | 'Inactivo';
   role: Role;
   plan: PlanType;
   avatar?: string;
@@ -53,11 +59,16 @@ export interface Message {
   senderId: string;
   text: string;
   timestamp: string;
+  attachment?: {
+    name: string;
+    type: 'image' | 'document';
+    url: string;
+  };
 }
 
 export interface Interaction {
   id: string;
-  type: 'Llamada' | 'Email' | 'Reunión' | 'Demo' | 'Nota';
+  type: 'Llamada' | 'Email' | 'Reunión' | 'Demo' | 'Nota' | 'Presentación' | 'Propuesta' | 'Contacto inicial' | 'Cambio de Estado' | 'Transferencia';
   content: string;
   timestamp: string;
   userId: string;
@@ -72,6 +83,20 @@ export interface InternalChat {
   lastMessageTime?: string;
   avatar?: string;
   messages: Message[];
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description: string;
+  start: string;
+  end: string;
+  type: 'meeting' | 'followup' | 'event' | 'task';
+  priority: 'high' | 'medium' | 'low';
+  userId: string;
+  clientId?: string;
+  status: 'pending' | 'completed' | 'cancelled' | 'confirmed';
+  attendees: string[]; // Changed from guests to attendees
 }
 
 export interface Client {
@@ -90,11 +115,13 @@ export interface Client {
   necesidadDetectada: string;
   solucionOfrecida: string;
   equipoOfrecido: string;
+  comentarios?: string;
   presupuestoEstimado: number;
   assignedTo: string; // User ID
   closingProbability: number; // 0-100
   messages: Message[];
   historial: Interaction[];
+  priority?: 'high' | 'medium' | 'low'; // Added priority
 }
 
 export interface Notification {

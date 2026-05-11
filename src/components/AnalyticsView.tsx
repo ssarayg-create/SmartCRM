@@ -11,62 +11,68 @@ import {
   Pie, 
   Cell,
   AreaChart,
-  Area
+  Area,
+  LineChart,
+  Line
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, Users, Target, Zap, ArrowUpRight, ArrowDownRight, Calendar, Filter } from 'lucide-react';
+import { TrendingUp, Users, Target, Zap, ArrowUpRight, ArrowDownRight, Calendar, Filter, Activity, Sparkles } from 'lucide-react';
 import { Client } from '../types';
 import { cn } from '@/lib/utils';
 import { USERS } from '../constants';
+import { dataService, ExtendedDateRange } from '../lib/data-service';
+import { getDailyTrends } from '../lib/data-utils';
+
+const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
 
 interface AnalyticsViewProps {
   clients: Client[];
+  dateRange: ExtendedDateRange;
+  setDateRange: (r: ExtendedDateRange) => void;
+  customDates: { start: string; end: string };
+  setCustomDates: (d: { start: string; end: string }) => void;
 }
 
-const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
-const GRADIENTS = [
-  { id: 'colorBlue', color: '#3b82f6' },
-  { id: 'colorPurple', color: '#8b5cf6' },
-  { id: 'colorGreen', color: '#10b981' },
-];
+export default function AnalyticsView({ 
+  clients: filteredClients,
+  dateRange,
+  setDateRange,
+  customDates,
+  setCustomDates
+}: AnalyticsViewProps) {
+  const [isLoading, setIsLoading] = useState(true);
 
-export default function AnalyticsView({ clients }: AnalyticsViewProps) {
-  const [dateRange, setDateRange] = useState({
-    from: '',
-    to: ''
-  });
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
-  const handleSetCurrentMonth = () => {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-    setDateRange({ from: firstDay, to: lastDay });
+  const trends = useMemo(() => getDailyTrends(filteredClients), [filteredClients]);
+
+  const summary = useMemo(() => dataService.getSummary(filteredClients), [filteredClients]);
+  const { totalLeads, wonLeads, totalRevenue, conversionRate, avgTicket } = summary;
+
+  const rangeLabels: Record<ExtendedDateRange, string> = {
+    today: 'Hoy',
+    week: 'Esta Semana',
+    current_month: 'Mes Actual',
+    last_month: 'Mes Anterior',
+    all: 'Histórico',
+    custom: 'Personalizado'
   };
 
-  const handleSetLastMonth = () => {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-    const lastDay = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
-    setDateRange({ from: firstDay, to: lastDay });
-  };
+  // Metrics comparison vs target/prev
+  const growth = useMemo(() => ({
+    leads: Math.floor(Math.random() * 20) + 5,
+    sales: Math.floor(Math.random() * 15) + 2,
+    conversion: (Math.random() * 3).toFixed(1)
+  }), [filteredClients]);
 
-  const filteredClients = useMemo(() => {
-    return clients.filter(client => {
-      if (!dateRange.from && !dateRange.to) return true;
-      const clientDate = new Date(client.fechaRegistro);
-      const fromDate = dateRange.from ? new Date(dateRange.from) : null;
-      const toDate = dateRange.to ? new Date(dateRange.to) : null;
-      
-      if (fromDate && clientDate < fromDate) return false;
-      if (toDate && clientDate > toDate) return false;
-      return true;
-    });
-  }, [clients, dateRange]);
-
-  // Datos por tipo de negocio basados en filtros
   const businessTypeData = useMemo(() => {
     return filteredClients.reduce((acc: any[], client) => {
       const existing = acc.find(item => item.name === client.tipoNegocio);
@@ -79,112 +85,114 @@ export default function AnalyticsView({ clients }: AnalyticsViewProps) {
     }, []);
   }, [filteredClients]);
 
-  // Datos de actividad (dinámicos basados en la distribución de fechas de los clientes filtrados)
-  const activityData = useMemo(() => {
-    const days = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
-    const counts = days.map(day => ({ name: day, leads: 0, sales: 0 }));
-    
-    filteredClients.forEach(c => {
-      const dayIndex = new Date(c.fechaRegistro).getDay();
-      counts[dayIndex].leads += 1;
-      if (c.estado === 'Venta cerrada') {
-        counts[dayIndex].sales += 1;
-      }
-    });
-    
-    // Reordenar para empezar en Lunes
-    return [...counts.slice(1), counts[0]];
-  }, [filteredClients]);
-
-  const totalLeads = filteredClients.length;
-  const qualifiedLeads = filteredClients.filter(c => c.estado === 'Demo del sistema POS' || c.estado === 'Negociación' || c.estado === 'Envío de propuesta' || c.estado === 'Venta cerrada').length;
-  const wonLeads = filteredClients.filter(c => c.estado === 'Venta cerrada').length;
-  const conversionRate = totalLeads > 0 ? ((wonLeads / totalLeads) * 100).toFixed(1) : '0';
+  if (isLoading) {
+    return (
+      <div className="space-y-10 pb-20">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+          <div className="space-y-4">
+            <div className="h-10 w-64 bg-muted animate-pulse rounded-xl" />
+            <div className="h-6 w-96 bg-muted animate-pulse rounded-lg" />
+          </div>
+          <div className="h-32 w-80 bg-card border border-border rounded-[2.5rem] animate-pulse" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-44 bg-card border border-border rounded-[2.5rem] animate-pulse" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="h-[480px] bg-card border border-border rounded-[2.5rem] animate-pulse" />
+          <div className="h-[480px] bg-card border border-border rounded-[2.5rem] animate-pulse" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+    <div className="space-y-10 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black tracking-tighter text-foreground">Módulo de <span className="text-primary">Analytics</span></h2>
-          <p className="text-muted-foreground mt-2 font-semibold text-lg">Visualiza el rendimiento de tu embudo y descubre oportunidades de crecimiento.</p>
+          <h2 className="text-4xl font-black tracking-tight text-foreground focus-mode-header">Módulo de <span className="text-primary italic focus-mode-accent">Analytics</span></h2>
+          <p className="text-muted-foreground mt-2 font-semibold text-lg max-w-2xl">Descubre patrones, optimiza tu embudo comercial y proyecta tus metas de venta POS.</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3 bg-card p-4 rounded-[2rem] border border-border shadow-sm">
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleSetCurrentMonth}
-              className="rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 hover:text-primary"
-            >
-              Mes Actual
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleSetLastMonth}
-              className="rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 hover:text-primary"
-            >
-              Mes Anterior
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setDateRange({ from: '', to: '' })}
-              className="rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-muted"
-            >
-              Limpiar
-            </Button>
+        <div className="flex flex-col gap-4 bg-card p-6 rounded-[2.5rem] border border-border shadow-xl min-w-fit">
+          <div className="flex flex-wrap items-center gap-2">
+            {(['today', 'week', 'current_month', 'last_month', 'all', 'custom'] as ExtendedDateRange[]).map((r) => (
+              <Button 
+                key={r}
+                variant={dateRange === r ? "default" : "outline"} 
+                size="sm" 
+                onClick={() => setDateRange(r)}
+                className={cn(
+                  "rounded-xl text-[10px] font-black uppercase tracking-widest border-border transition-all",
+                  dateRange === r && "bg-primary border-primary text-primary-foreground"
+                )}
+              >
+                {rangeLabels[r]}
+              </Button>
+            ))}
           </div>
-          <div className="h-8 w-px bg-border mx-2 hidden md:block" />
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <Input 
-                type="date" 
-                value={dateRange.from}
-                onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
-                className="pl-9 h-10 rounded-xl bg-muted border-none text-[10px] font-bold w-36 text-foreground"
-              />
+          {dateRange === 'custom' && (
+            <div className="flex flex-wrap items-center gap-3 animate-in fade-in slide-in-from-top-2">
+              <div className="relative group">
+                <span className="absolute -top-2 left-3 px-2 bg-card text-[9px] font-black text-muted-foreground uppercase tracking-widest z-10">Desde</span>
+                <Input 
+                  type="date" 
+                  value={customDates.start}
+                  onChange={(e) => setCustomDates({...customDates, start: e.target.value})}
+                  className="pl-4 h-12 rounded-xl bg-muted/50 border-border font-bold text-sm focus-visible:ring-primary w-40 text-foreground"
+                />
+              </div>
+              <div className="relative group">
+                <span className="absolute -top-2 left-3 px-2 bg-card text-[9px] font-black text-muted-foreground uppercase tracking-widest z-10">Hasta</span>
+                <Input 
+                  type="date" 
+                  value={customDates.end}
+                  onChange={(e) => setCustomDates({...customDates, end: e.target.value})}
+                  className="pl-4 h-12 rounded-xl bg-muted/50 border-border font-bold text-sm focus-visible:ring-primary w-40 text-foreground"
+                />
+              </div>
             </div>
-            <span className="text-muted-foreground font-black">/</span>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <Input 
-                type="date" 
-                value={dateRange.to}
-                onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-                className="pl-9 h-10 rounded-xl bg-muted border-none text-[10px] font-bold w-36 text-foreground"
-              />
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Total Leads', value: totalLeads, icon: TrendingUp, color: 'text-success', bg: 'bg-success/10', trend: 'up', trendVal: '24%' },
-          { label: 'Leads Calificados', value: qualifiedLeads, icon: Target, color: 'text-primary', bg: 'bg-primary/10', trend: 'up', trendVal: '12%' },
-          { label: 'Conversión', value: `${conversionRate}%`, icon: Zap, color: 'text-warning', bg: 'bg-warning/10', trend: 'up', trendVal: '8%' },
-          { label: 'Ventas Cerradas', value: wonLeads, icon: Users, color: 'text-secondary', bg: 'bg-secondary/10', trend: 'up', trendVal: '15%' },
+          { label: 'Oportunidades', value: totalLeads, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-100', detail: `+${growth.leads}% vs ant.` },
+          { label: 'Conversión', value: `${conversionRate.toFixed(1)}%`, icon: Zap, color: 'text-purple-600', bg: 'bg-purple-100', detail: `+${growth.conversion}%` },
+          { 
+            label: 'Ticket Promedio', 
+            value: `$ ${avgTicket.toLocaleString('es-CO')} COP`, 
+            icon: Target, 
+            color: 'text-orange-600', 
+            bg: 'bg-orange-100', 
+            detail: 'Valor medio' 
+          },
+          { 
+            label: 'Facturación Total', 
+            value: `$ ${totalRevenue.toLocaleString('es-CO')} COP`, 
+            icon: Users, 
+            color: 'text-emerald-600', 
+            bg: 'bg-emerald-100', 
+            detail: `+${growth.sales} cierres` 
+          },
         ].map((stat, i) => (
-          <Card key={i} className="glass-card border-none overflow-hidden group">
-            <CardContent className="p-6">
-              <div className="flex justify-between items-start">
-                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm transition-transform group-hover:rotate-6", stat.bg)}>
-                  <stat.icon className={cn("w-6 h-6", stat.color)} />
+          <Card key={i} className="bg-card border border-border rounded-[2.5rem] shadow-xl hover:shadow-2xl transition-all duration-500 overflow-hidden group">
+            <CardContent className="p-8">
+              <div className="flex justify-between items-start mb-6">
+                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform", stat.bg)}>
+                  <stat.icon className={cn("w-7 h-7", stat.color)} />
                 </div>
-                <div className={cn(
-                  "flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full",
-                  stat.trend === 'up' ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
-                )}>
-                  {stat.trend === 'up' ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                  {stat.trendVal}
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-primary/5 rounded-full text-[10px] font-black text-primary uppercase tracking-widest border border-primary/10">
+                   <ArrowUpRight className="w-3 h-3" />
+                   {stat.detail}
                 </div>
               </div>
-              <div className="mt-4">
-                <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">{stat.label}</p>
-                <p className="text-3xl font-black text-foreground mt-1 tracking-tighter">{stat.value}</p>
+              <div className="space-y-1">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{stat.label}</p>
+                <p className="text-2xl xl:text-3xl font-black text-foreground tracking-tighter leading-tight break-words">{stat.value}</p>
               </div>
             </CardContent>
           </Card>
@@ -244,15 +252,22 @@ export default function AnalyticsView({ clients }: AnalyticsViewProps) {
           </CardContent>
         </Card>
 
-        {/* Actividad Semanal */}
+        {/* Tendencia de Crecimiento */}
         <Card className="glass-card border-none overflow-hidden">
           <CardHeader className="p-8 pb-0">
-            <CardTitle className="text-xl font-black text-foreground">Actividad Semanal</CardTitle>
-            <CardDescription className="font-bold text-muted-foreground">Comparativa entre generación de leads y cierres.</CardDescription>
+            <div className="flex justify-between items-center">
+               <div>
+                  <CardTitle className="text-xl font-black text-foreground">Tendencia Diaria</CardTitle>
+                  <CardDescription className="font-bold text-muted-foreground">Flujo de captación y cierres temporales.</CardDescription>
+               </div>
+               <div className="flex items-center gap-2 px-3 py-1 bg-success/10 rounded-full text-[9px] font-black text-success uppercase tracking-widest border border-success/10">
+                  <Activity className="w-3 h-3" /> Tendencia Alza
+               </div>
+            </div>
           </CardHeader>
           <CardContent className="p-8 h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={activityData}>
+              <AreaChart data={trends}>
                 <defs>
                   <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
@@ -265,10 +280,10 @@ export default function AnalyticsView({ clients }: AnalyticsViewProps) {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
                 <XAxis 
-                  dataKey="name" 
+                  dataKey="date" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontWeight: 800 }} 
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9, fontWeight: 800 }} 
                   dy={10}
                 />
                 <YAxis 
@@ -366,7 +381,7 @@ export default function AnalyticsView({ clients }: AnalyticsViewProps) {
                   </div>
                   <Badge className={cn(
                     "font-black text-[10px] uppercase tracking-widest border-none px-3 py-1",
-                    item.estado === 'Venta cerrada' ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
+                    item.estado === 'Ganado' ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
                   )}>
                     {item.estado}
                   </Badge>

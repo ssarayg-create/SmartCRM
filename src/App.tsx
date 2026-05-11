@@ -3,12 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import LeadsList from './components/LeadsList';
 import KanbanBoard from './components/KanbanBoard';
 import ClientForm from './components/ClientForm';
+import { Bell } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Client, LeadStatus, User, PlanType, InternalChat, Interaction } from './types';
 import { INITIAL_CLIENTS, DEFAULT_BUSINESS_TYPES, USERS, INTERNAL_CHATS } from './constants';
 import { Toaster } from '@/components/ui/sonner';
@@ -21,8 +23,14 @@ import SalesRanking from './components/SalesRanking';
 import PricingView from './components/PricingView';
 import ChatView from './components/ChatView';
 import InternalChatView from './components/InternalChatView';
+import CalendarView from './components/CalendarView';
 import ClientDetailView from './components/ClientDetailView';
 import OnboardingTour from './components/OnboardingTour';
+import AIAssistant from './components/AIAssistant';
+import LandingPage from './components/LandingPage';
+import { authService } from './services/authService';
+import { dataService, ExtendedDateRange } from './lib/data-service';
+import { generateMockData } from './lib/data-utils';
 
 function Footer() {
   return (
@@ -81,17 +89,83 @@ function Footer() {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [clients, setClients] = useState<Client[]>([]);
   const [internalChats, setInternalChats] = useState<InternalChat[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
-    return saved ? JSON.parse(saved) : false;
+    try {
+      const saved = localStorage.getItem('darkMode');
+      return saved ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
   });
   const [showTour, setShowTour] = useState(false);
   const [advisors, setAdvisors] = useState<User[]>(USERS);
+
+  const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+
+  useEffect(() => {
+    // Si hay sesión guardada en localStorage dedicada para la demo o persistente
+    const demoAuth = localStorage.getItem('auth');
+    if (demoAuth && !isAuthenticated) {
+      handleLogin(JSON.parse(demoAuth).user);
+    }
+  }, []);
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        // 1. Prioridad: Sesión Local (Híbrida)
+        const savedSession = localStorage.getItem('smartcrm_session');
+        if (savedSession) {
+          const { user, accessToken } = JSON.parse(savedSession);
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+          localStorage.setItem('accessToken', accessToken);
+          setIsRefreshing(false);
+          return;
+        }
+
+        // 2. Fallback: Recuperación mediante Token (Full-stack)
+        const { accessToken } = await authService.refreshToken();
+        localStorage.setItem('accessToken', accessToken);
+        const userResponse = await fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        if (userResponse.ok) {
+          const user = await userResponse.json();
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+        }
+      } catch (err) {
+        console.log('No active session found in storage or server');
+      } finally {
+        setIsRefreshing(false);
+      }
+    };
+    restoreSession();
+  }, []);
+
+  const handleLogin = (user: any) => {
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+      localStorage.removeItem('accessToken');
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+    } catch (err) {
+      toast.error('Error al cerrar sesión');
+    }
+  };
 
   useEffect(() => {
     if (isAuthenticated && currentUser) {
@@ -106,14 +180,8 @@ export default function App() {
       const updatedUser = { ...currentUser, hasSeenOnboarding: true };
       setCurrentUser(updatedUser);
       
-      // Persistir en localStorage si no es el usuario especial
-      if (currentUser.email !== 'valentinagutierrez@gmail.com') {
-        const savedUsers = JSON.parse(localStorage.getItem('crm_users') || '[]');
-        const updatedUsers = savedUsers.map((u: any) => 
-          u.email === currentUser.email ? updatedUser : u
-        );
-        localStorage.setItem('crm_users', JSON.stringify(updatedUsers));
-      }
+      // Update DB or local (DB is prioritized in new system)
+      // fetch('/api/users/onboarding', { method: 'POST', ... })
     }
     setShowTour(false);
     setActiveTab('dashboard');
@@ -130,44 +198,58 @@ export default function App() {
 
   useEffect(() => {
     if (isAuthenticated && currentUser) {
-      if (currentUser.email === 'valentinagutierrez@gmail.com') {
-        setClients(INITIAL_CLIENTS);
-        setInternalChats(INTERNAL_CHATS);
-      } else {
-        const savedClients = localStorage.getItem(`clients_${currentUser.id}`);
-        setClients(savedClients ? JSON.parse(savedClients) : []);
-        
-        const savedChats = localStorage.getItem(`chats_${currentUser.id}`);
-        setInternalChats(savedChats ? JSON.parse(savedChats) : []);
-      }
+      // In professional mode, we fetch these from API
+      // fetch('/api/clients').then(...)
+      // For demo, we use generateMockData to fulfill "every day since March 3" requirement
+      if (clients.length === 0) setClients(generateMockData('all'));
+      if (internalChats.length === 0) setInternalChats(INTERNAL_CHATS);
     }
   }, [isAuthenticated, currentUser]);
 
-  useEffect(() => {
-    if (isAuthenticated && currentUser && currentUser.email !== 'valentinagutierrez@gmail.com') {
-      localStorage.setItem(`clients_${currentUser.id}`, JSON.stringify(clients));
-      localStorage.setItem(`chats_${currentUser.id}`, JSON.stringify(internalChats));
-    }
-  }, [clients, internalChats, isAuthenticated, currentUser]);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [viewingClient, setViewingClient] = useState<Client | null>(null);
   const [businessTypes, setBusinessTypes] = useState<string[]>(DEFAULT_BUSINESS_TYPES);
   const [selectedChatClient, setSelectedChatClient] = useState<Client | null>(null);
 
-  const handleLogin = (user: any) => {
-    setCurrentUser(user);
-    setIsAuthenticated(true);
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-  };
-
   const [selectedSalespersonFilter, setSelectedSalespersonFilter] = useState<string>('all');
+  const [priorityFilter, setPriorityFilter] = useState(false);
+
+  // Sync Date Filtering State
+  const [dateRange, setDateRange] = useState<ExtendedDateRange>('all');
+  const [customDates, setCustomDates] = useState({ start: '', end: '' });
+
+  useEffect(() => {
+    dataService.setClients(clients);
+  }, [clients]);
+
+  const filteredByDateClients = useMemo(() => {
+    if (dateRange === 'custom') {
+      const start = customDates.start ? new Date(customDates.start) : undefined;
+      const end = customDates.end ? new Date(customDates.end) : undefined;
+      return dataService.filterByRange(clients, 'custom', start, end);
+    }
+    return dataService.filterByRange(clients, dateRange);
+  }, [dateRange, customDates, clients]);
+
+  if (isRefreshing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+          <p className="text-sm font-black text-foreground uppercase tracking-widest animate-pulse">SmartCRM verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSelectSalesperson = (userId: string) => {
     setSelectedSalespersonFilter(userId);
+    setPriorityFilter(false);
+    setActiveTab('leads');
+  };
+
+  const handleViewPriority = () => {
+    setPriorityFilter(true);
     setActiveTab('leads');
   };
 
@@ -201,10 +283,13 @@ export default function App() {
       const newClient: Client = {
         ...formData,
         id: Math.random().toString(36).substr(2, 9),
-        fecha_registro: new Date().toISOString(),
+        fechaRegistro: new Date().toISOString(),
+        ultimoContacto: new Date().toISOString(),
+        proximoSeguimiento: new Date(Date.now() + 86400000 * 2).toISOString(),
         assignedTo: currentUser?.id || 'u1',
         closingProbability: 20,
-        messages: []
+        messages: [],
+        historial: []
       } as Client;
       setClients(prev => [newClient, ...prev]);
       toast.success('Nuevo lead registrado con éxito');
@@ -216,12 +301,36 @@ export default function App() {
     setClients(prev => prev.map(c => {
       if (c.id === clientId) {
         let prob = c.closingProbability;
-        if (newStatus === 'Venta cerrada') prob = 100;
-        if (newStatus === 'Negociación') prob = 85;
-        if (newStatus === 'Envío de propuesta') prob = 70;
-        if (newStatus === 'Demo del sistema POS') prob = 50;
+        if (newStatus === 'Ganado') {
+          prob = 100;
+          toast.success('¡NEGOCIO GANADO!', {
+            description: `Felicidades, el negocio ${c.nombreNegocio} ha sido cerrado con éxito. 🏆`,
+            duration: 5000,
+          });
+
+          // Manejo de Notificaciones con petición de permiso proactiva
+          if ('Notification' in window) {
+            if (Notification.permission === 'granted') {
+              new Notification('¡Negocio Ganado! 🏆', {
+                body: `El negocio ${c.nombreNegocio} ha pasado a estado Ganado.`,
+              });
+            } else if (Notification.permission !== 'denied') {
+              Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                  new Notification('¡Negocio Ganado! 🏆', {
+                    body: `Felicidades, acabas de cerrar el negocio ${c.nombreNegocio}.`,
+                  });
+                }
+              });
+            }
+          }
+        }
+        if (newStatus === 'Propuesta enviada') prob = 85;
+        if (newStatus === 'Negociación') prob = 70;
+        if (newStatus === 'Presentación') prob = 50;
         if (newStatus === 'Contacto inicial') prob = 30;
-        if (newStatus === 'Nuevo lead') prob = 10;
+        if (newStatus === 'Nuevos prospectos') prob = 10;
+        if (newStatus === 'Perdido') prob = 0;
         
         const interaction: Interaction = {
           id: Math.random().toString(36).substr(2, 9),
@@ -231,7 +340,13 @@ export default function App() {
           userId: currentUser?.id || 'u1'
         };
         
-        return { ...c, estado: newStatus, closingProbability: prob, historial: [interaction, ...c.historial] };
+        return { 
+          ...c, 
+          estado: newStatus, 
+          closingProbability: prob, 
+          ultimoContacto: new Date().toISOString(),
+          historial: [interaction, ...c.historial] 
+        };
       }
       return c;
     }));
@@ -299,18 +414,32 @@ export default function App() {
   };
 
   if (!isAuthenticated) {
+    if (showAuth) {
+      return (
+        <>
+          <AuthView onLogin={handleLogin} initialMode={authMode} />
+          <Toaster position="top-right" richColors />
+        </>
+      );
+    }
     return (
-      <>
-        <AuthView onLogin={handleLogin} />
-        <Toaster position="top-right" richColors />
-      </>
+      <LandingPage 
+        onGetStarted={() => {
+          setAuthMode('register');
+          setShowAuth(true);
+        }} 
+        onLogin={() => {
+          setAuthMode('login');
+          setShowAuth(true);
+        }}
+      />
     );
   }
 
   // Filtrar clientes si el usuario es Vendedor
   const visibleClients = currentUser?.role === 'Admin' 
-    ? clients 
-    : clients.filter(c => c.assignedTo === currentUser?.id);
+    ? filteredByDateClients 
+    : filteredByDateClients.filter(c => c.assignedTo === currentUser?.id);
 
   return (
     <div className="flex min-h-screen bg-background font-sans overflow-x-hidden">
@@ -321,40 +450,64 @@ export default function App() {
         onLogout={handleLogout}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
       />
       
-      <main className="flex-1 flex flex-col min-w-0 lg:ml-72">
-        <header className="h-20 bg-card/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 md:px-10 z-10 sticky top-0">
-          <div className="flex items-center gap-3">
+      <main className="flex-1 flex flex-col min-w-0 lg:ml-72 transition-all duration-300">
+        <header className="h-20 bg-card/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-border flex items-center justify-between px-4 md:px-10 z-30 sticky top-0 shadow-sm">
+          <div className="flex items-center gap-4">
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="p-2 -ml-2 text-muted-foreground hover:text-primary lg:hidden"
+              className="p-2.5 -ml-2 text-muted-foreground hover:text-primary lg:hidden bg-muted/50 rounded-xl transition-all active:scale-95"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
             </button>
-            <div className="hidden sm:block w-2 h-2 rounded-full bg-primary animate-pulse" />
-            <span className="hidden xs:block text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">SmartCRM</span>
-            <span className="hidden xs:block text-border mx-1">/</span>
-            <span className="text-sm font-black text-foreground capitalize tracking-tight truncate max-w-[100px] sm:max-w-none">
-              {activeTab === 'leads' ? 'Clientes' : activeTab === 'pipeline' ? 'Pipeline' : activeTab}
-            </span>
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:block w-1.5 h-6 bg-primary rounded-full" />
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.3em] leading-none mb-1">Módulo Actual</span>
+                <span className="text-lg font-black text-slate-900 dark:text-white capitalize tracking-tighter leading-none">
+                  {activeTab === 'leads' ? 'Gestión de Leads' : 
+                   activeTab === 'pipeline' ? 'Pipeline Comercial' : 
+                   activeTab === 'calendar' ? 'Calendario Empresarial' : 
+                   activeTab === 'chat' ? 'Comunicaciones' : 
+                   activeTab === 'analytics' ? 'Inteligencia de Datos' : 
+                   activeTab === 'ranking' ? 'Panel de Ventas' : activeTab}
+                </span>
+              </div>
+            </div>
           </div>
+
           <div className="flex items-center gap-2 sm:gap-6">
+            <div className="hidden lg:flex items-center gap-3 px-4 py-2 bg-slate-100 dark:bg-white/5 rounded-2xl border border-border">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none">Servidor Operativo</span>
+            </div>
+            
             <button 
               onClick={() => setActiveTab('notifications')}
-              className="relative p-2 text-muted-foreground hover:text-primary transition-colors"
+              className="relative p-3 text-muted-foreground hover:text-primary transition-all bg-muted hover:bg-primary/5 rounded-2xl group active:scale-90"
             >
-              <div className="absolute top-2 right-2 w-2 h-2 bg-danger rounded-full border-2 border-card" />
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+              <div className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-card ring-4 ring-rose-500/20" />
+              <Bell className="w-5 h-5 group-hover:rotate-12 transition-transform" />
             </button>
-            <div className="hidden md:flex items-center gap-2 px-4 py-1.5 bg-muted rounded-full border border-border">
-              <div className="w-2 h-2 rounded-full bg-success" />
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Online</span>
-            </div>
-            <div className="flex -space-x-3">
-              {USERS.slice(0, 3).map(u => (
-                <div key={u.id} className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl border-2 sm:border-4 border-card bg-primary/10 flex items-center justify-center text-[10px] sm:text-xs font-black text-primary shadow-sm">
-                  {u.avatar}
+
+            <div className="hidden md:flex -space-x-3 hover:translate-x-3 transition-transform cursor-pointer">
+              {USERS.slice(0, 3).map((u, i) => (
+                <div 
+                  key={u.id} 
+                  className={cn(
+                    "w-10 h-10 rounded-2xl border-[3px] border-card bg-slate-100 dark:bg-white/5 flex items-center justify-center text-xs font-black text-primary shadow-lg transition-all hover:-translate-y-2 overflow-hidden",
+                    i === 0 ? "relative z-30" : i === 1 ? "relative z-20" : "relative z-10"
+                  )}
+                  title={u.name}
+                >
+                  {u.avatar && u.avatar.startsWith('http') ? (
+                    <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    u.avatar
+                  )}
                 </div>
               ))}
             </div>
@@ -363,7 +516,16 @@ export default function App() {
 
         <div className="flex-1 p-4 md:p-10">
           <div className="max-w-7xl mx-auto">
-            {activeTab === 'dashboard' && <Dashboard clients={visibleClients} />}
+            {activeTab === 'dashboard' && (
+              <Dashboard 
+                clients={visibleClients} 
+                onViewPriority={handleViewPriority}
+                dateRange={dateRange}
+                setDateRange={setDateRange}
+                customDates={customDates}
+                setCustomDates={setCustomDates}
+              />
+            )}
             {activeTab === 'leads' && (
               <LeadsList 
                 clients={visibleClients} 
@@ -375,6 +537,8 @@ export default function App() {
                   setActiveTab('client-chat');
                 }}
                 initialFilterUser={selectedSalespersonFilter}
+                initialFilterPriority={priorityFilter}
+                onFilterReset={() => setPriorityFilter(false)}
               />
             )}
             {activeTab === 'pipeline' && (
@@ -385,7 +549,20 @@ export default function App() {
                 currentUserId={currentUser?.id || 'u1'}
               />
             )}
-            {activeTab === 'analytics' && <AnalyticsView clients={visibleClients} />}
+            {activeTab === 'calendar' && (
+              <CalendarView 
+                currentUser={currentUser!}
+              />
+            )}
+            {activeTab === 'analytics' && (
+              <AnalyticsView 
+                clients={visibleClients}
+                dateRange={dateRange}
+                setDateRange={setDateRange}
+                customDates={customDates}
+                setCustomDates={setCustomDates}
+              />
+            )}
             {activeTab === 'ranking' && <SalesRanking clients={visibleClients} onSelectUser={handleSelectSalesperson} />}
             {activeTab === 'pricing' && <PricingView currentPlan={currentUser?.plan || 'Básico'} onUpgrade={handleUpgrade} />}
             {activeTab === 'chat' && currentUser && (
@@ -454,6 +631,7 @@ export default function App() {
       )}
       
       <Toaster position="top-right" richColors />
+      <AIAssistant />
       {showTour && (
         <OnboardingTour 
           onComplete={handleTourComplete} 

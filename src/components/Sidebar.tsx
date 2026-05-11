@@ -14,8 +14,10 @@ import {
   Zap,
   MessageSquare,
   AlertTriangle,
-  Play,
-  Sparkles
+  CalendarDays,
+  Moon,
+  Sun,
+  ShieldCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -28,14 +30,26 @@ interface SidebarProps {
   onLogout: () => void;
   isOpen: boolean;
   onClose: () => void;
+  darkMode: boolean;
+  setDarkMode: (dark: boolean) => void;
 }
 
-export default function Sidebar({ activeTab, setActiveTab, userProfile, onLogout, isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ 
+  activeTab, 
+  setActiveTab, 
+  userProfile, 
+  onLogout, 
+  isOpen, 
+  onClose,
+  darkMode,
+  setDarkMode
+}: SidebarProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'leads', label: 'Negocios POS', icon: Users },
     { id: 'pipeline', label: 'Pipeline POS', icon: Kanban },
+    { id: 'calendar', label: 'Calendario', icon: CalendarDays },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'ranking', label: 'Ranking Asesores', icon: Trophy },
     { id: 'chat', label: 'Chat Interno', icon: MessageSquare },
@@ -51,7 +65,6 @@ export default function Sidebar({ activeTab, setActiveTab, userProfile, onLogout
 
   return (
     <>
-      {/* Backdrop for mobile */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -65,95 +78,117 @@ export default function Sidebar({ activeTab, setActiveTab, userProfile, onLogout
       </AnimatePresence>
 
       <div className={cn(
-        "fixed inset-y-0 left-0 w-72 bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border shadow-2xl z-50 transition-transform duration-300 lg:translate-x-0",
+        "fixed inset-y-0 left-0 w-72 bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border shadow-2xl z-50 transition-transform duration-300 lg:translate-x-0 h-screen",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        {/* Logo Section - Fixed at top */}
-        <div className="p-8 pb-6 shrink-0">
+        {/* Logo Section */}
+        <div className="p-8 pb-6 shrink-0 relative">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 rotate-3 group hover:rotate-0 transition-transform duration-300">
+              <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 rotate-3 group-hover:rotate-0 transition-transform duration-500">
                 <Zap className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-black tracking-tighter text-sidebar-foreground">Smart<span className="text-primary">CRM</span></h1>
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">SaaS Edition</p>
+                <h1 className="text-2xl font-black tracking-tighter">Smart<span className="text-primary italic">CRM</span></h1>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <ShieldCheck className="w-3 h-3 text-primary" />
+                  <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Verified SaaS</p>
+                </div>
               </div>
             </div>
-            <button onClick={onClose} className="lg:hidden p-2 text-muted-foreground hover:text-sidebar-foreground">
+            <button onClick={onClose} className="lg:hidden p-2 text-muted-foreground hover:text-white transition-colors">
               <ChevronRight className="w-6 h-6 rotate-180" />
             </button>
           </div>
         </div>
 
-        {/* Navigation Section - Scrollable */}
-        <div className="flex-1 overflow-y-auto px-8 py-2 scrollbar-hide">
-          <nav className="space-y-2">
-            {menuItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleTabClick(item.id)}
-                className={cn(
-                  "sidebar-item w-full group relative overflow-hidden",
-                  activeTab === item.id 
-                    ? "bg-primary/10 text-primary" 
-                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                )}
-              >
-                {activeTab === item.id && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
-                )}
-                <item.icon className={cn(
-                  "w-5 h-5 transition-all duration-300",
-                  activeTab === item.id ? "scale-110" : "group-hover:scale-110"
-                )} />
-                <span className="flex-1 text-left">{item.label}</span>
-                <ChevronRight className={cn(
-                  "w-4 h-4 transition-transform duration-300",
-                  activeTab === item.id ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0"
-                )} />
-              </button>
-            ))}
-          </nav>
+        {/* Navigation Section - Independent Scroll */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-hide space-y-8">
+          <div className="space-y-1">
+            <p className="px-4 text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] mb-4">Menú Principal</p>
+            <nav className="space-y-1">
+              {menuItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleTabClick(item.id)}
+                  className={cn(
+                    "sidebar-item w-full group relative py-3.5",
+                    activeTab === item.id 
+                      ? "bg-primary text-white shadow-lg shadow-primary/20" 
+                      : "text-slate-400 hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  <item.icon className={cn(
+                    "w-5 h-5 transition-all duration-300",
+                    activeTab === item.id ? "scale-110" : "group-hover:scale-110"
+                  )} />
+                  <span className="flex-1 text-left font-bold">{item.label}</span>
+                  {activeTab === item.id && (
+                    <motion.div layoutId="active-pill" className="w-1.5 h-1.5 bg-white rounded-full" />
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          <div className="space-y-1">
+             <p className="px-4 text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] mb-4">Administración</p>
+             <nav className="space-y-1">
+                <button 
+                  onClick={() => handleTabClick('pricing')}
+                  className={cn(
+                    "sidebar-item w-full",
+                    activeTab === 'pricing' ? "bg-primary text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  <CreditCard className="w-5 h-5" />
+                  <span className="font-bold">Planes</span>
+                </button>
+                <button 
+                  onClick={() => handleTabClick('settings')}
+                  className={cn(
+                    "sidebar-item w-full",
+                    activeTab === 'settings' ? "bg-primary text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  <Settings className="w-5 h-5" />
+                  <span className="font-bold">Ajustes</span>
+                </button>
+             </nav>
+          </div>
         </div>
 
-        {/* Footer Section - Fixed at bottom */}
-        <div className="p-8 pt-4 space-y-4 shrink-0 border-t border-sidebar-border bg-sidebar/50 backdrop-blur-md">
-          <button 
-            onClick={() => handleTabClick('pricing')}
-            className={cn(
-              "sidebar-item w-full bg-gradient-to-r from-primary/10 to-secondary/10 border border-sidebar-border",
-              activeTab === 'pricing' ? "text-primary border-primary/20" : "text-muted-foreground hover:text-sidebar-foreground"
-            )}
-          >
-            <CreditCard className="w-5 h-5" />
-            <span>Planes y Precios</span>
-          </button>
+        {/* Footer Section */}
+        <div className="p-6 shrink-0 border-t border-sidebar-border space-y-6">
+          {/* Theme Toggle Wrapper */}
+          <div className="flex items-center justify-between px-2">
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Tema</span>
+            <button 
+              onClick={() => setDarkMode(!darkMode)}
+              className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/5"
+            >
+              <div className={cn("p-1.5 rounded-lg transition-all", !darkMode ? "bg-primary text-white shadow-lg" : "text-slate-500")}>
+                <Sun className="w-3.5 h-3.5" />
+              </div>
+              <div className={cn("p-1.5 rounded-lg transition-all", darkMode ? "bg-primary text-white shadow-lg" : "text-slate-500")}>
+                <Moon className="w-3.5 h-3.5" />
+              </div>
+            </button>
+          </div>
 
-          <button 
-            onClick={() => handleTabClick('settings')}
-            className={cn(
-              "sidebar-item w-full",
-              activeTab === 'settings' ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            )}
-          >
-            <Settings className="w-5 h-5" />
-            <span>Configuración</span>
-          </button>
-          
-          <div className="flex items-center gap-4 px-2 py-4 border-t border-sidebar-border pt-8">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center font-black text-white shadow-lg border border-white/10 shrink-0">
+          <div className="flex items-center gap-4 bg-white/5 p-4 rounded-3xl border border-white/5 group">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center font-black text-white shadow-lg border border-white/10 shrink-0 group-hover:scale-110 transition-transform">
               {userProfile.name.split(' ').map(n => n[0]).join('')}
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-black truncate text-sidebar-foreground">{userProfile.name}</p>
-              <p className="text-[10px] text-muted-foreground truncate font-bold uppercase tracking-wider">Plan Enterprise</p>
+              <p className="text-sm font-black truncate">{userProfile.name}</p>
+              <p className="text-[9px] text-primary font-black uppercase tracking-widest">Enterprise v1.2</p>
             </div>
             <button 
               onClick={() => setShowLogoutConfirm(true)} 
-              className="p-2 hover:bg-danger/10 rounded-xl transition-colors group shrink-0"
+              className="p-2.5 hover:bg-rose-500/10 rounded-xl transition-colors group shrink-0"
             >
-              <LogOut className="w-4 h-4 text-muted-foreground group-hover:text-danger transition-colors" />
+              <LogOut className="w-5 h-5 text-slate-500 group-hover:text-rose-500 transition-colors" />
             </button>
           </div>
         </div>

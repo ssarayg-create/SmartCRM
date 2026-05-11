@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -48,6 +49,12 @@ export default function SettingsView({
     security: true
   });
 
+  const [newAdvisor, setNewAdvisor] = useState({
+    name: '',
+    email: '',
+    role: 'Asesor'
+  });
+
   const handleSaveProfile = () => {
     setUserProfile(profile);
     toast.success('Perfil actualizado correctamente');
@@ -69,6 +76,29 @@ export default function SettingsView({
   const handleRemoveType = (type: string) => {
     setBusinessTypes(businessTypes.filter(t => t !== type));
     toast.info('Tipo de negocio eliminado');
+  };
+
+  const handleCreateAdvisor = () => {
+    if (!newAdvisor.name || !newAdvisor.email) {
+      toast.error('Nombre y email son requeridos');
+      return;
+    }
+    const advisor = {
+      id: `u${advisors.length + 1}`,
+      ...newAdvisor,
+      avatar: newAdvisor.name.split(' ').map(n => n[0]).join(''),
+      points: 0,
+      wonCount: 0,
+      assignedCount: 0,
+      closedRevenue: 0,
+      achievements: [],
+      medals: []
+    };
+    onUpdateAdvisors([...advisors, advisor]);
+    setNewAdvisor({ name: '', email: '', role: 'Asesor' });
+    toast.success('¡Asesor creado con éxito!', {
+      description: `${advisor.name} ha sido agregado al equipo SmartCRM.`
+    });
   };
 
   return (
@@ -122,6 +152,54 @@ export default function SettingsView({
                 <Button onClick={handleSaveProfile} className="btn-primary flex items-center gap-2">
                   <Save className="w-4 h-4" />
                   Guardar Cambios
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Cambiar Contraseña */}
+          <Card className="glass-card border-none overflow-hidden mt-8">
+            <CardHeader className="bg-muted/50 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-black text-foreground">Seguridad</CardTitle>
+                  <CardDescription className="font-bold text-muted-foreground">Actualiza tu contraseña de acceso.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Contraseña Actual</Label>
+                  <Input 
+                    type="password"
+                    placeholder="••••••••"
+                    className="h-12 rounded-xl bg-muted border-none font-bold"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Nueva Contraseña</Label>
+                  <Input 
+                    type="password"
+                    placeholder="••••••••"
+                    className="h-12 rounded-xl bg-muted border-none font-bold"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Confirmar Contraseña</Label>
+                  <Input 
+                    type="password"
+                    placeholder="••••••••"
+                    className="h-12 rounded-xl bg-muted border-none font-bold"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button variant="outline" className="rounded-xl border-border font-black text-xs h-10 px-6">
+                  Actualizar Contraseña
                 </Button>
               </div>
             </CardContent>
@@ -189,39 +267,65 @@ export default function SettingsView({
                 <Plus className="w-4 h-4 mr-2" /> Invitar Asesor
               </Button>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-border">
-                {advisors.map((advisor) => (
-                  <div key={advisor.id} className="p-6 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-lg font-black text-primary">
-                        {advisor.avatar}
+            <CardContent className="p-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Nombre Completo</Label>
+                  <Input 
+                    placeholder="Ej. Juan Pérez"
+                    value={newAdvisor.name}
+                    onChange={(e) => setNewAdvisor({...newAdvisor, name: e.target.value})}
+                    className="h-12 rounded-xl bg-muted border-none font-bold"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Email Corporativo</Label>
+                  <Input 
+                    type="email"
+                    placeholder="juan@smartcrm.com"
+                    value={newAdvisor.email}
+                    onChange={(e) => setNewAdvisor({...newAdvisor, email: e.target.value})}
+                    className="h-12 rounded-xl bg-muted border-none font-bold"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Rol Comercial</Label>
+                 <select 
+                   value={newAdvisor.role}
+                   onChange={(e) => setNewAdvisor({...newAdvisor, role: e.target.value})}
+                   className="w-full h-12 rounded-xl bg-muted border-none font-bold px-4 text-sm appearance-none cursor-pointer"
+                 >
+                   <option value="Asesor">Asesor Comercial</option>
+                   <option value="Asesor Senior">Asesor Senior</option>
+                   <option value="Admin">Administrador</option>
+                 </select>
+              </div>
+              <Button onClick={handleCreateAdvisor} className="w-full h-12 rounded-[1.25rem] bg-indigo-500 hover:bg-indigo-600 text-white font-black shadow-lg shadow-indigo-500/20">
+                <Plus className="w-5 h-5 mr-2" />
+                Registrar en el Sistema
+              </Button>
+
+              <Separator className="my-6" />
+
+              <div className="space-y-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Asesores Activos ({advisors.length})</p>
+                <div className="grid grid-cols-1 gap-3">
+                  {advisors.map((adv) => (
+                    <div key={adv.id} className="flex items-center justify-between p-4 rounded-2xl bg-muted/30 border border-border group hover:border-indigo-500/50 transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center font-black text-indigo-600 text-xs shadow-sm">
+                          {adv.avatar}
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-foreground">{adv.name}</p>
+                          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{adv.role} • {adv.email}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-black text-foreground">{advisor.name}</p>
-                        <p className="text-xs font-bold text-muted-foreground">{advisor.email}</p>
-                      </div>
+                      <Badge variant="outline" className="rounded-lg bg-emerald-500/10 text-emerald-600 border-none text-[9px] font-black uppercase tracking-widest">Activo</Badge>
                     </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
-                        <Badge variant="outline" className={cn(
-                          "font-black text-[9px] uppercase tracking-widest",
-                          advisor.role === 'Admin' ? "border-indigo-500 text-indigo-500" : "border-muted-foreground text-muted-foreground"
-                        )}>
-                          {advisor.role}
-                        </Badge>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground hover:text-primary">
-                          <SettingsIcon className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground hover:text-danger">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>

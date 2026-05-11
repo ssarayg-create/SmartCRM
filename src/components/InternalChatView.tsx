@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,11 +46,42 @@ interface InternalChatViewProps {
 export default function InternalChatView({ currentUser, initialChats, onUpdateChats }: InternalChatViewProps) {
   const [chats, setChats] = useState<InternalChat[]>(initialChats);
   const [selectedChatId, setSelectedChatId] = useState<string>(initialChats[0]?.id || '');
+  const selectedChat = chats.find(c => c.id === selectedChatId) || chats[0];
   const [messageText, setMessageText] = useState('');
   const [chatSearch, setChatSearch] = useState('');
+  const [messageSearch, setMessageSearch] = useState('');
+  const [searchIndex, setSearchIndex] = useState(0);
+  const [showMsgSearch, setShowMsgSearch] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [showList, setShowList] = useState(true);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [unreadIds, setUnreadIds] = useState<string[]>(['ic1']);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const EMOJI_CATEGORIES = [
+    { name: 'Smileys', emojis: ['😊', '😂', '🤣', '😍', '🥰', '😎', '🤩', '🥳', '😏', '🤔', '🤐', '🤨', '😐', '😑', '😶', '🙄', '😌', '😴', '🤤', '😪'] },
+    { name: 'Gesto', emojis: ['👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '✊', '🤛', '🤜', '🤚', '👋', '✍️', '👏', '🙌', '👐', '🤲'] },
+    { name: 'Negocio', emojis: ['💼', '📈', '📉', '📊', '📋', '📁', '📂', '📅', '📆', '🗓️', '📇', '🗂️', '📑', '🏢', '🏦'] },
+    { name: 'Otros', emojis: ['🚀', '🔥', '✅', '👀', '💡', '📢', '🔔', '🎯', '🏆', '⭐', '✨', '⚡', '💥', '💢', '💨', '💦', '💫', '💬', '💭', '🗯️'] },
+    { name: 'Comida', emojis: ['☕', '🍵', '🥐', '🥯', '🍔', '🍟', '🍕', '🌮', '🥗', '🥘', '🍲', '🍜', '🍝', '🍣', '🍱', '🍧', '🍰', '🧁', '🍦', '🍩'] }
+  ];
+
+  const searchResults = useMemo(() => {
+    if (!messageSearch || !selectedChat) return [];
+    return selectedChat.messages
+      .map((m, index) => m.text.toLowerCase().includes(messageSearch.toLowerCase()) ? index : -1)
+      .filter(i => i !== -1);
+  }, [messageSearch, selectedChat]);
+
+  const handleNextSearch = () => {
+    if (searchResults.length === 0) return;
+    setSearchIndex((prev) => (prev + 1) % searchResults.length);
+  };
+
+  const handlePrevSearch = () => {
+    if (searchResults.length === 0) return;
+    setSearchIndex((prev) => (prev - 1 + searchResults.length) % searchResults.length);
+  };
 
   // Priorizar chats activos (con mensajes más recientes)
   const sortedChats = [...chats].sort((a, b) => {
@@ -64,10 +95,13 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
     c.lastMessage.toLowerCase().includes(chatSearch.toLowerCase())
   );
 
-  const selectedChat = chats.find(c => c.id === selectedChatId) || chats[0];
+  const displayMessages = selectedChat.messages.filter(m => 
+    m.text.toLowerCase().includes(messageSearch.toLowerCase())
+  );
 
   const handleSelectChat = (id: string) => {
     setSelectedChatId(id);
+    setUnreadIds(prev => prev.filter(uid => uid !== id));
     if (window.innerWidth < 1024) {
       setShowList(false);
     }
@@ -128,11 +162,24 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
   };
 
   const handleAttach = (type: 'image' | 'file') => {
-    toast.success(`${type === 'image' ? 'Imagen' : 'Archivo'} adjuntado (simulado)`);
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
-  const handleEmoji = () => {
-    setMessageText(prev => prev + ' 😊');
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      toast.success(`Archivo "${file.name}" cargado`, {
+        description: "En un sistema real, este archivo se subiría a un servidor."
+      });
+      // Simulate sending file
+      setMessageText(`[Archivo adjunto: ${file.name}]`);
+    }
+  };
+
+  const handleEmoji = (emoji: string = '😊') => {
+    setMessageText(prev => prev + emoji);
   };
 
   const getParticipantInfo = (userId: string) => {
@@ -141,6 +188,14 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
 
   return (
     <div className="flex h-[calc(100vh-12rem)] gap-0 lg:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700 relative overflow-hidden">
+      {/* Hidden File Input */}
+      <input 
+        type="file" 
+        className="hidden" 
+        ref={fileInputRef} 
+        onChange={handleFileChange}
+      />
+
       {/* Sidebar de Chats */}
       <Card className={cn(
         "w-full lg:w-96 flex flex-col border-none rounded-none lg:rounded-[2.5rem] overflow-hidden glass-card shadow-xl transition-all duration-300 z-20",
@@ -183,7 +238,11 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
                 )}
                 <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center font-black text-primary shadow-sm shrink-0 overflow-hidden">
-                  {chat.avatar}
+                  {chat.avatar && chat.avatar.startsWith('http') ? (
+                    <img src={chat.avatar} alt={chat.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    chat.avatar
+                  )}
                 </div>
                 <div className="flex-1 text-left overflow-hidden">
                   <div className="flex items-center justify-between mb-1">
@@ -198,8 +257,10 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
                     <p className="text-sm truncate font-medium text-muted-foreground">
                       {chat.lastMessage}
                     </p>
-                    {chat.id === 'ic1' && (
-                      <Badge className="h-5 w-5 p-0 flex items-center justify-center rounded-full bg-primary text-[10px] font-black">2</Badge>
+                    {unreadIds.includes(chat.id) && (
+                      <Badge className="h-5 w-5 p-0 flex items-center justify-center rounded-full bg-primary text-[10px] font-black border-2 border-background animate-pulse shadow-lg shadow-primary/20">
+                        {chat.id === 'ic1' ? '2' : '1'}
+                      </Badge>
                     )}
                   </div>
                 </div>
@@ -225,8 +286,12 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
             >
               <ChevronLeft className="w-6 h-6" />
             </Button>
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 flex items-center justify-center font-black text-primary shadow-sm">
-              {selectedChat.avatar}
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 flex items-center justify-center font-black text-primary shadow-sm overflow-hidden">
+              {selectedChat.avatar && selectedChat.avatar.startsWith('http') ? (
+                <img src={selectedChat.avatar} alt={selectedChat.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                selectedChat.avatar
+              )}
             </div>
             <div className="cursor-pointer" onClick={() => setShowInfo(!showInfo)}>
               <h3 className="text-base sm:text-lg font-black text-foreground tracking-tight truncate max-w-[150px] sm:max-w-none">{selectedChat.name}</h3>
@@ -234,7 +299,48 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
             </div>
           </div>
             <div className="flex items-center gap-1 sm:gap-2">
-              <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground hover:text-primary">
+              {showMsgSearch && (
+                <div className="flex items-center gap-2 animate-in slide-in-from-right-2 duration-300">
+                  <div className="relative flex items-center">
+                    <Input 
+                      placeholder="Buscar en chat..." 
+                      value={messageSearch}
+                      onChange={(e) => {
+                        setMessageSearch(e.target.value);
+                        setSearchIndex(0);
+                      }}
+                      className="w-32 sm:w-48 h-10 rounded-xl bg-muted border-none text-[10px] font-bold uppercase tracking-wider pr-10"
+                    />
+                    {searchResults.length > 0 && (
+                      <span className="absolute right-3 text-[9px] font-black text-primary">
+                        {searchIndex + 1}/{searchResults.length}
+                      </span>
+                    )}
+                  </div>
+                  {searchResults.length > 0 && (
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={handlePrevSearch}>
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={handleNextSearch}>
+                        <ChevronLeft className="w-4 h-4 rotate-180" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className={cn("rounded-xl text-muted-foreground hover:text-primary", showMsgSearch && "bg-primary/10 text-primary")}
+                onClick={() => {
+                  setShowMsgSearch(!showMsgSearch);
+                  if (showMsgSearch) {
+                    setMessageSearch('');
+                    setSearchIndex(0);
+                  }
+                }}
+              >
                 <Search className="w-5 h-5" />
               </Button>
               <DropdownMenu>
@@ -263,12 +369,12 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
             </div>
         </div>
 
-        {/* Mensajes con fondo tipo WhatsApp */}
-        <div className="flex-1 flex overflow-hidden relative bg-[#e5ddd5] dark:bg-[#0b141a] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+        {/* Mensajes con fondo tipo WhatsApp Business Elegante */}
+        <div className="flex-1 flex overflow-hidden relative bg-[#fdfcf0] dark:bg-[#0b141a] bg-[url('https://www.transparenttextures.com/patterns/subtle-dots.png')]">
           <div className="flex-1 flex flex-col overflow-hidden relative z-10">
             <ScrollArea className="flex-1 p-4 sm:p-8">
               <div className="space-y-4">
-                {selectedChat.messages.map((msg, i) => {
+                {displayMessages.map((msg, i) => {
                   const isMe = msg.senderId === currentUser.id;
                   
                   return (
@@ -337,9 +443,36 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
               )}
               <div className="flex items-center gap-3">
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground" onClick={handleEmoji}>
-                    <Smile className="w-6 h-6" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:bg-muted">
+                        <Smile className="w-6 h-6" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-[320px] rounded-2xl p-4 border-border shadow-2xl bg-card">
+                      <ScrollArea className="h-64 pr-4">
+                        <div className="space-y-4">
+                          {EMOJI_CATEGORIES.map(category => (
+                            <div key={category.name}>
+                              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2 px-1">{category.name}</p>
+                              <div className="grid grid-cols-6 gap-1">
+                                {category.emojis.map(emoji => (
+                                  <Button 
+                                    key={emoji} 
+                                    variant="ghost" 
+                                    className="h-10 w-10 p-0 text-xl rounded-xl hover:bg-primary/10 transition-all active:scale-90"
+                                    onClick={() => handleEmoji(emoji)}
+                                  >
+                                    {emoji}
+                                  </Button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground">
@@ -393,8 +526,12 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                 </Button>
-                <div className="w-24 h-24 rounded-[2.5rem] bg-primary/10 flex items-center justify-center text-3xl font-black text-primary mb-6 shadow-inner">
-                  {selectedChat.avatar}
+                <div className="w-24 h-24 rounded-[2.5rem] bg-primary/10 flex items-center justify-center text-3xl font-black text-primary mb-6 shadow-inner overflow-hidden">
+                  {selectedChat.avatar && selectedChat.avatar.startsWith('http') ? (
+                    <img src={selectedChat.avatar} alt={selectedChat.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    selectedChat.avatar
+                  )}
                 </div>
                 <h4 className="text-xl font-black text-foreground tracking-tight">{selectedChat.name}</h4>
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">
@@ -427,8 +564,12 @@ export default function InternalChatView({ currentUser, initialChats, onUpdateCh
                             }}
                             className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-muted transition-colors group"
                           >
-                            <div className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center text-[10px] font-black text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                              {p?.avatar}
+                            <div className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center text-[10px] font-black text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors overflow-hidden">
+                              {p?.avatar && p.avatar.startsWith('http') ? (
+                                <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                p?.avatar
+                              )}
                             </div>
                             <div className="flex-1 overflow-hidden text-left">
                               <p className="text-xs font-black text-foreground truncate">{p?.name}</p>

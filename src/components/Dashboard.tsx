@@ -1,5 +1,7 @@
-
 import React, { useState, useMemo } from 'react';
+import { dataService, ExtendedDateRange } from '../lib/data-service';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { 
   Users, 
   TrendingUp, 
@@ -17,7 +19,12 @@ import {
   Download,
   Loader2,
   TrendingDown,
-  DollarSign
+  DollarSign,
+  FileSpreadsheet,
+  FileText,
+  Filter,
+  PhoneIncoming, 
+  Sparkles
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -42,430 +49,452 @@ import {
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import { USERS } from '../constants';
+import { generateMockData } from '../lib/data-utils';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
 
 interface DashboardProps {
   clients: Client[];
+  onViewPriority: () => void;
+  dateRange: ExtendedDateRange;
+  setDateRange: (r: ExtendedDateRange) => void;
+  customDates: { start: string; end: string };
+  setCustomDates: (d: { start: string; end: string }) => void;
 }
 
-type DateRange = 'today' | 'week' | 'month' | 'all';
+export default function Dashboard({ 
+  clients: filteredClients, 
+  onViewPriority,
+  dateRange,
+  setDateRange,
+  customDates,
+  setCustomDates
+}: DashboardProps) {
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
 
-export default function Dashboard({ clients }: DashboardProps) {
-  const [range, setRange] = useState<DateRange>('all');
-  const [isExporting, setIsExporting] = useState(false);
+  const summary = useMemo(() => dataService.getSummary(filteredClients), [filteredClients]);
+  const insights = useMemo(() => dataService.getInsights(filteredClients), [filteredClients]);
 
-  const filteredClients = useMemo(() => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    return clients.filter(client => {
-      const clientDate = new Date(client.fechaRegistro);
-      
-      if (range === 'today') {
-        return clientDate >= today;
-      }
-      if (range === 'week') {
-        const weekAgo = new Date(today);
-        weekAgo.setDate(today.getDate() - 7);
-        return clientDate >= weekAgo;
-      }
-      if (range === 'month') {
-        const monthAgo = new Date(today);
-        monthAgo.setMonth(today.getMonth() - 1);
-        return clientDate >= monthAgo;
-      }
-      return true;
-    });
-  }, [clients, range]);
+  const { totalLeads, wonLeads, totalRevenue, conversionRate, avgTicket, contactedLeads } = summary;
 
-  const totalLeads = filteredClients.length;
-  const wonLeads = filteredClients.filter(c => c.estado === 'Venta cerrada').length;
-  const demosRealized = filteredClients.filter(c => c.estado === 'Demo del sistema POS' || c.estado === 'Envío de propuesta' || c.estado === 'Negociación' || c.estado === 'Venta cerrada').length;
-  const conversionRate = totalLeads > 0 ? ((wonLeads / totalLeads) * 100).toFixed(1) : 0;
-  const avgSaleValue = wonLeads > 0 
-    ? (filteredClients.filter(c => c.estado === 'Venta cerrada').reduce((acc, c) => acc + c.presupuestoEstimado, 0) / wonLeads).toLocaleString()
-    : 0;
+  const rangeLabels: Record<ExtendedDateRange, string> = {
+    today: 'Hoy',
+    week: 'Esta Semana',
+    current_month: 'Mes Actual',
+    last_month: 'Mes Anterior',
+    all: 'Histórico',
+    custom: 'Personalizado'
+  };
 
-  // Smart Metrics
-  const now = new Date();
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(now.getDate() - 7);
-  
-  const threeDaysAgo = new Date(now);
-  threeDaysAgo.setDate(now.getDate() - 3);
-
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-
-  const newLeadsCount = clients.filter(c => new Date(c.fechaRegistro) >= sevenDaysAgo).length;
-  
-  const atRiskLeads = clients.filter(c => {
-    const lastContact = new Date(c.ultimoContacto);
-    return c.estado !== 'Venta cerrada' && lastContact < threeDaysAgo;
-  });
-
-  const monthlySales = clients.filter(c => {
-    const regDate = new Date(c.fechaRegistro);
-    return c.estado === 'Venta cerrada' && regDate.getMonth() === currentMonth && regDate.getFullYear() === currentYear;
-  });
-
-  const monthlyRevenue = monthlySales.reduce((acc, c) => acc + c.presupuestoEstimado, 0);
-
-  const handleExport = async () => {
-    setIsExporting(true);
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
     try {
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'SmartCRM';
-      workbook.lastModifiedBy = 'SmartCRM';
+      workbook.creator = 'SmartCRM Executive Service';
+      workbook.lastModifiedBy = 'SmartCRM Administrator';
       workbook.created = new Date();
       
-      const sheet = workbook.addWorksheet('Reporte de Ventas');
-
-      // Estilos de colores
-      const primaryColor = '2563EB'; // Blue-600
-      const secondaryColor = 'F1F5F9'; // Slate-100
-      const textColor = '0F172A'; // Slate-900
-
-      // Título del Reporte
-      sheet.mergeCells('A1:H2');
-      const titleCell = sheet.getCell('A1');
-      titleCell.value = 'REPORTE ESTRATÉGICO DE VENTAS - SMARTCRM';
-      titleCell.font = { name: 'Inter', size: 16, bold: true, color: { argb: 'FFFFFF' } };
-      titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
-      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: primaryColor } };
-
-      // Fecha de generación
-      sheet.mergeCells('A3:H3');
-      const dateCell = sheet.getCell('A3');
-      dateCell.value = `Generado el: ${new Date().toLocaleString()}`;
-      dateCell.font = { italic: true, size: 10 };
-      dateCell.alignment = { horizontal: 'right' };
-
-      // Espacio
-      sheet.addRow([]);
-
-      // Resumen Ejecutivo (Smart Cards)
-      sheet.addRow(['RESUMEN EJECUTIVO']).font = { bold: true, size: 12 };
-      sheet.addRow(['Métrica', 'Valor', 'Estado']);
+      // Hoja 1: RESUMEN EJECUTIVO
+      const summarySheet = workbook.addWorksheet('Resumen Ejecutivo');
       
-      const summaryData = [
-        ['Leads Nuevos (7d)', newLeadsCount, 'Activo'],
-        ['Oportunidades en Riesgo', atRiskLeads.length, 'Atención Requerida'],
-        ['Ventas del Mes', monthlySales.length, 'En Progreso'],
-        ['Ingresos del Mes', `$${monthlyRevenue.toLocaleString()}`, 'Meta'],
-        ['Tasa de Conversión', `${conversionRate}%`, 'Rendimiento']
-      ];
+      // Estilos Corporativos
+      const primaryColor = 'FF2563EB';
+      const secondaryColor = 'FF1E293B';
+      const whiteColor = 'FFFFFFFF';
+      
+      // Header Corporativo
+      summarySheet.mergeCells('A1:F3');
+      const headerCell = summarySheet.getCell('A1');
+      headerCell.value = 'SMARTCRM SAAS POS - REPORTE EJECUTIVO COMERCIAL';
+      headerCell.font = { bold: true, size: 20, color: { argb: whiteColor } };
+      headerCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      headerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: secondaryColor.replace('FF', '') } };
 
-      summaryData.forEach((row, i) => {
-        const r = sheet.addRow(row);
-        if (row[2] === 'Atención Requerida') {
-          r.getCell(3).font = { color: { argb: 'EF4444' }, bold: true };
-        }
+      summarySheet.addRow([]);
+      summarySheet.addRow(['INFORME DE GESTIÓN Y PERSPECTIVAS COMERCIALES']);
+      summarySheet.getRow(5).font = { bold: true, size: 14, color: { argb: primaryColor } };
+      
+      summarySheet.addRow(['FECHA DE EMISIÓN:', new Date().toLocaleDateString('es-CO', { dateStyle: 'long' })]);
+      summarySheet.addRow(['PERIODO ANALIZADO:', rangeLabels[dateRange].toUpperCase()]);
+      summarySheet.addRow(['SISTEMA:', 'SMARTCRM POS V2.0']);
+      
+      summarySheet.addRow([]);
+
+      // KPIs Principales
+      summarySheet.addRow(['INDICADORES CLAVE DE DESEMPEÑO (KPIs)']).font = { bold: true, size: 12 };
+      
+      const kpiHeader = summarySheet.addRow(['INDICADOR', 'VALOR ACTUAL', 'TENDENCIA', 'ANÁLISIS']);
+      kpiHeader.eachCell(c => {
+        c.font = { bold: true, color: { argb: whiteColor } };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: primaryColor.replace('FF', '') } };
       });
 
-      sheet.addRow([]);
+      summarySheet.addRow(['Volumen de Leads', totalLeads, 'Estable', 'Captación de prospectos en el periodo.']);
+      summarySheet.addRow(['Ventas Efectivas (Won)', wonLeads, 'Incremento', 'Cierres confirmados y contratos firmados.']);
+      summarySheet.addRow(['Ingresos Brutos (COP)', totalRevenue, 'Ascendente', 'Valor total de negocios cerrados.']);
+      summarySheet.addRow(['Ticket Promedio', avgTicket, 'Óptimo', 'Valor promedio por cada venta exitosa.']);
+      summarySheet.addRow(['Tasa de Conversión', `${conversionRate.toFixed(2)}%`, 'Crítico', 'Relación entre leads y ventas cerradas.']);
 
-      // Tabla de Datos de Clientes
-      sheet.addRow(['DETALLE DE CLIENTES Y NEGOCIOS']).font = { bold: true, size: 12 };
-      const headerRow = sheet.addRow([
-        'ID', 
-        'Negocio', 
-        'Contacto', 
-        'Tipo', 
-        'Ciudad', 
-        'Estado', 
-        'Presupuesto', 
-        'Probabilidad'
-      ]);
+      summarySheet.getCell('B13').numFmt = '"$ "#,##0';
+      summarySheet.getCell('B14').numFmt = '"$ "#,##0';
 
-      headerRow.eachCell((cell) => {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'E2E8F0' } };
-        cell.font = { bold: true };
-        cell.border = { bottom: { style: 'thin' } };
+      summarySheet.addRow([]);
+      
+      // Secciòn de Conclusiones Automáticas IA
+      summarySheet.addRow(['CONCLUSIONES Y RECOMENDACIONES ESTRATÉGICAS']).font = { bold: true, size: 12 };
+      summarySheet.addRow(['Basado en el análisis de datos del periodo, se concluye:']).font = { italic: true };
+      
+      insights.forEach((insight, idx) => {
+        summarySheet.addRow([`${idx + 1}. ${insight}`]);
       });
 
-      clients.forEach(client => {
-        sheet.addRow([
-          client.id,
-          client.nombreNegocio,
-          client.nombreContacto,
-          client.tipoNegocio,
-          client.ciudad,
-          client.estado,
-          client.presupuestoEstimado,
-          `${client.closingProbability}%`
+      summarySheet.addRow([]);
+      summarySheet.addRow(['ACCIONES RECOMENDADAS:']).font = { bold: true };
+      summarySheet.addRow(['• Aumentar el seguimiento en leads con probabilidad superior al 70%.']);
+      summarySheet.addRow(['• Optimizar la etapa de "Presentación" para elevar la tasa de conversión.']);
+      summarySheet.addRow(['• Revisar la estrategia de captación si el ticket promedio desciende del objetivo.']);
+
+      summarySheet.getColumn(1).width = 40;
+      summarySheet.getColumn(2).width = 25;
+      summarySheet.getColumn(3).width = 15;
+      summarySheet.getColumn(4).width = 50;
+
+      // Hoja 2: DATA DETALLADA
+      const dataSheet = workbook.addWorksheet('Detalle de Clientes');
+      const header = dataSheet.addRow(['FECHA REGISTRO', 'NEGOCIO', 'CONTACTO', 'CIUDAD', 'ESTADO', 'VALOR ESTIMADO', 'ASESOR', 'ÉXITO %']);
+      
+      header.eachCell(c => {
+        c.font = { bold: true, color: { argb: whiteColor } };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF475569'.replace('FF', '') } };
+        c.alignment = { horizontal: 'center' };
+      });
+
+      filteredClients.forEach(c => {
+        dataSheet.addRow([
+          new Date(c.fechaRegistro).toLocaleDateString(),
+          c.nombreNegocio,
+          c.nombreContacto,
+          c.ciudad,
+          c.estado,
+          c.presupuestoEstimado,
+          USERS.find(u => u.id === c.assignedTo)?.name || 'Sin asignar',
+          c.closingProbability / 100
         ]);
       });
 
-      // Ajustar anchos de columna
-      sheet.columns.forEach(column => {
-        column.width = 20;
-      });
+      dataSheet.getColumn(7).numFmt = '"$ "#,##0';
+      dataSheet.getColumn(9).numFmt = '0%';
+      dataSheet.columns.forEach(col => col.width = 20);
 
-      // Descargar archivo
       const buffer = await workbook.xlsx.writeBuffer();
-      saveAs(new Blob([buffer]), `SmartCRM_Reporte_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success('Reporte exportado correctamente');
+      saveAs(new Blob([buffer]), `SMARTCRM_REPORTE_EJECUTIVO_${new Date().getTime()}.xlsx`);
+      toast.success('Reporte Excel Profesional generado');
     } catch (error) {
-      console.error('Export error:', error);
-      toast.error('Error al exportar el reporte');
+      console.error(error);
+      toast.error('Error al exportar Excel');
     } finally {
-      setIsExporting(false);
+      setIsExportingExcel(false);
     }
   };
 
-  const rangeLabels: Record<DateRange, string> = {
-    today: 'Hoy',
-    week: 'Esta Semana',
-    month: 'Este Mes',
-    all: 'Todo el tiempo'
+  const handleExportPDF = () => {
+    setIsExportingPDF(true);
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      // Portada Moderna
+      doc.setFillColor(15, 23, 42); // Dark Slate
+      doc.rect(0, 0, pageWidth, 297, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(36);
+      doc.setFont("helvetica", "bold");
+      doc.text('SMARTCRM', pageWidth / 2, 80, { align: 'center' });
+      
+      doc.setFontSize(24);
+      doc.text('INFORME EJECUTIVO', pageWidth / 2, 100, { align: 'center' });
+      doc.setFontSize(16);
+      doc.text('GESTIÓN COMERCIAL POS', pageWidth / 2, 115, { align: 'center' });
+      
+      doc.setDrawColor(37, 99, 235);
+      doc.setLineWidth(1.5);
+      doc.line(70, 125, 140, 125);
+      
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Periodo: ${rangeLabels[dateRange]}`, pageWidth / 2, 145, { align: 'center' });
+      doc.text(`Fecha: ${new Date().toLocaleDateString('es-CO', { dateStyle: 'full' })}`, pageWidth / 2, 155, { align: 'center' });
+      
+      // Página 2
+      doc.addPage();
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text('Resumen de Operaciones', 14, 30);
+      
+      // KPIs visuales
+      const kpoBg = [248, 250, 252];
+      doc.setFillColor(kpoBg[0], kpoBg[1], kpoBg[2]);
+      doc.roundedRect(14, 40, 55, 40, 5, 5, 'F');
+      doc.roundedRect(77, 40, 55, 40, 5, 5, 'F');
+      doc.roundedRect(140, 40, 55, 40, 5, 5, 'F');
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text('LEADS', 20, 52);
+      doc.text('CONVERSIÓN', 83, 52);
+      doc.text('INGRESOS', 146, 52);
+      
+      doc.setFontSize(18);
+      doc.setTextColor(37, 99, 235);
+      doc.text(totalLeads.toString(), 20, 68);
+      doc.text(`${conversionRate.toFixed(1)}%`, 83, 68);
+      doc.text(`$${(totalRevenue/1000000).toFixed(1)}M`, 146, 68);
+      
+      // Tabla Detallada
+      autoTable(doc, {
+        startY: 95,
+        head: [['Negocio', 'Estado', 'Valor Estimado', 'Probabilidad']],
+        body: filteredClients.slice(0, 12).map(c => [
+          c.nombreNegocio,
+          c.estado,
+          `$ ${c.presupuestoEstimado.toLocaleString()}`,
+          `${c.closingProbability}%`
+        ]),
+        headStyles: { fillColor: [30, 41, 59], fontSize: 10 },
+        styles: { fontSize: 9 },
+        alternateRowStyles: { fillColor: [249, 250, 251] }
+      });
+
+      // Página 3: Conclusiones
+      doc.addPage();
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text('Análisis y Conclusiones', 14, 30);
+      
+      doc.setFontSize(11);
+      doc.setTextColor(51, 65, 85);
+      doc.setFont("helvetica", "italic");
+      
+      let y = 45;
+      insights.forEach(insight => {
+        const lines = doc.splitTextToSize(`• ${insight}`, 180);
+        doc.text(lines, 14, y);
+        y += (lines.length * 7) + 5;
+      });
+
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text('Recomendación Estratégica:', 14, y + 10);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      const conclusion = "Se recomienda priorizar el seguimiento en las etapas finales del embudo (Negociación y Propuesta) para maximizar el ROI del periodo. La automatización de procesos POS sigue siendo el principal motor de interés de los leads.";
+      const splitConclusion = doc.splitTextToSize(conclusion, 180);
+      doc.text(splitConclusion, 14, y + 18);
+
+      doc.save(`SMARTCRM_REPORTE_EJECUTIVO_${new Date().getTime()}.pdf`);
+      toast.success('Informe PDF Corporativo generado');
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al generar PDF');
+    } finally {
+      setIsExportingPDF(false);
+    }
   };
 
   const stats = [
-    { label: 'Leads Generados', value: totalLeads, icon: Users, color: 'text-primary', bg: 'bg-primary/10', trend: range === 'all' ? '+12%' : '+4%' },
-    { label: 'Demos Realizadas', value: demosRealized, icon: Zap, color: 'text-secondary', bg: 'bg-secondary/10', trend: range === 'all' ? '+5%' : '+2%' },
-    { label: 'Ventas Cerradas', value: wonLeads, icon: CheckCircle2, color: 'text-success', bg: 'bg-success/10', trend: range === 'all' ? '+8%' : '+3%' },
-    { label: 'Valor Promedio', value: `$${avgSaleValue}`, icon: TrendingUp, color: 'text-warning', bg: 'bg-warning/10', trend: 'Ticket Promedio' },
+    { label: 'Leads Totales', value: totalLeads, icon: Users, color: 'text-blue-600', bg: 'bg-blue-100', trend: 'Base de Datos' },
+    { label: 'Ventas Ganadas', value: wonLeads, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-100', trend: 'Cierres' },
+    { label: 'Ingresos Totales', value: formatCurrency(totalRevenue), icon: DollarSign, color: 'text-orange-600', bg: 'bg-orange-100', trend: 'COP' },
+    { label: 'Ticket Promedio', value: formatCurrency(avgTicket), icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-100', trend: 'Valor' },
+    { label: 'Conversión', value: `${conversionRate.toFixed(1)}%`, icon: BarChart3, color: 'text-indigo-600', bg: 'bg-indigo-100', trend: 'Efectividad' },
   ];
-
-  const businessTypeData = Object.entries(
-    filteredClients.reduce((acc, client) => {
-      acc[client.tipoNegocio] = (acc[client.tipoNegocio] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>)
-  ).map(([name, value]) => ({ name, value }));
 
   const statusData = [
-    { name: 'Nuevo lead', value: filteredClients.filter(c => c.estado === 'Nuevo lead').length },
-    { name: 'Contacto inicial', value: filteredClients.filter(c => c.estado === 'Contacto inicial').length },
-    { name: 'Demo POS', value: filteredClients.filter(c => c.estado === 'Demo del sistema POS').length },
-    { name: 'Propuesta', value: filteredClients.filter(c => c.estado === 'Envío de propuesta').length },
+    { name: 'Nuevos', value: filteredClients.filter(c => c.estado === 'Nuevos prospectos').length },
+    { name: 'Contactados', value: filteredClients.filter(c => c.estado === 'Contacto inicial').length },
+    { name: 'Presentación', value: filteredClients.filter(c => c.estado === 'Presentación').length },
     { name: 'Negociación', value: filteredClients.filter(c => c.estado === 'Negociación').length },
-    { name: 'Cerrado', value: filteredClients.filter(c => c.estado === 'Venta cerrada').length },
+    { name: 'Ganados', value: wonLeads },
   ];
 
-  const COLORS = ['#2563eb', '#7c3aed', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
-
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+    <div className="space-y-10 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black tracking-tighter text-foreground">Dashboard <span className="text-primary">SaaS Pro</span></h2>
-          <p className="text-muted-foreground mt-2 font-semibold text-lg">Bienvenido al centro de control de tu fuerza de ventas.</p>
+          <h2 className="text-4xl font-black tracking-tight text-foreground">Métricas <span className="text-primary italic">Comerciales</span></h2>
+          <p className="text-muted-foreground font-semibold text-lg mt-1">Análisis profundo del rendimiento POS.</p>
         </div>
         
-        <div className="flex items-center gap-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="outline"
-                  className="bg-card border-border rounded-2xl px-5 h-12 font-black text-[10px] uppercase tracking-widest shadow-sm hover:border-primary transition-all text-foreground"
-                >
-                  <CalendarIcon className="w-4 h-4 mr-2 text-primary" />
-                  {rangeLabels[range]}
-                  <ChevronDown className="w-4 h-4 ml-2 text-muted-foreground" />
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="end" className="rounded-2xl p-2 border-border shadow-xl bg-card min-w-[180px]">
-              <DropdownMenuItem onClick={() => setRange('today')} className="rounded-xl font-bold text-xs py-2.5 cursor-pointer text-foreground">Hoy</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setRange('week')} className="rounded-xl font-bold text-xs py-2.5 cursor-pointer text-foreground">Esta Semana</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setRange('month')} className="rounded-xl font-bold text-xs py-2.5 cursor-pointer text-foreground">Este Mes</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setRange('all')} className="rounded-xl font-bold text-xs py-2.5 cursor-pointer text-foreground">Todo el tiempo</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 bg-card p-1.5 rounded-2xl border border-border shadow-sm">
+            {(['today', 'week', 'current_month', 'last_month', 'all', 'custom'] as ExtendedDateRange[]).map((r) => (
+              <Button
+                key={r}
+                variant={dateRange === r ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setDateRange(r)}
+                className={cn(
+                  "rounded-xl font-black text-[10px] uppercase tracking-wider px-3",
+                  dateRange === r ? "shadow-lg bg-primary" : "text-muted-foreground"
+                )}
+              >
+                {rangeLabels[r]}
+              </Button>
+            ))}
+          </div>
 
-          <Button
-            onClick={handleExport}
-            disabled={isExporting}
-            className="bg-primary hover:bg-primary/90 text-white rounded-2xl px-6 h-12 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 transition-all active:scale-95"
-          >
-            {isExporting ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4 mr-2" />
-            )}
-            Exportar Reporte
-          </Button>
+          {dateRange === 'custom' && (
+            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2">
+              <div className="flex flex-col">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1 ml-1">Inicio</Label>
+                <Input 
+                  type="date" 
+                  className="h-10 rounded-xl bg-card border-border font-bold text-xs" 
+                  value={customDates.start}
+                  onChange={(e) => setCustomDates({...customDates, start: e.target.value})}
+                />
+              </div>
+              <div className="flex flex-col">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1 ml-1">Fin</Label>
+                <Input 
+                  type="date" 
+                  className="h-10 rounded-xl bg-card border-border font-bold text-xs" 
+                  value={customDates.end}
+                  onChange={(e) => setCustomDates({...customDates, end: e.target.value})}
+                />
+              </div>
+            </div>
+          )}
 
-          <div className="hidden lg:flex items-center gap-3 bg-card px-5 py-2.5 rounded-2xl border border-border shadow-sm h-12">
-            <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Sincronizado</span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExportExcel}
+              disabled={isExportingExcel}
+              className="rounded-2xl border-border px-5 h-12 font-black text-[10px] uppercase tracking-widest hover:border-primary bg-card"
+            >
+              {isExportingExcel ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2 text-emerald-600" />}
+              Excel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExportPDF}
+              disabled={isExportingPDF}
+              className="rounded-2xl border-border px-5 h-12 font-black text-[10px] uppercase tracking-widest hover:border-primary bg-card"
+            >
+              {isExportingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4 mr-2 text-rose-600" />}
+              PDF
+            </Button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {stats.map((stat, i) => (
-          <Card key={i} className="glass-card border-none group overflow-hidden relative">
-            <div className={cn("absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-150 duration-500", stat.bg)} />
-            <CardContent className="p-6 relative">
-              <div className="flex items-center justify-between">
-                <div className={cn("p-3.5 rounded-2xl transition-all group-hover:rotate-6 duration-300", stat.bg)}>
-                  <stat.icon className={cn("w-6 h-6", stat.color)} />
-                </div>
-                <div className={cn(
-                  "flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider",
-                  stat.trend.includes('+') ? "text-success bg-success/10" : "text-primary bg-primary/10"
-                )}>
-                  {stat.trend.includes('+') && <ArrowUpRight className="w-3 h-3" />}
-                  {stat.trend}
-                </div>
+          <Card key={i} className="bg-card border border-border rounded-[2.5rem] shadow-xl overflow-hidden group">
+            <CardContent className="p-8 relative">
+              <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center mb-6", stat.bg)}>
+                <stat.icon className={cn("w-7 h-7", stat.color)} />
               </div>
-              <div className="mt-6">
+              <div className="space-y-1">
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{stat.label}</p>
-                <h3 className="text-4xl font-black text-foreground mt-1 tracking-tighter">{stat.value}</h3>
+                <h3 className="text-3xl text-kpi-value tracking-tighter">{stat.value}</h3>
+              </div>
+              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider">
+                <ArrowUpRight className="w-3 h-3 text-primary" />
+                {stat.trend}
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Smart Cards Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="glass-card border-none bg-primary/5 border-l-4 border-l-primary">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-primary/10 rounded-2xl">
-              <Users className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Leads Nuevos (7d)</p>
-              <h4 className="text-2xl font-black text-foreground">{newLeadsCount}</h4>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card border-none bg-danger/5 border-l-4 border-l-danger">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-danger/10 rounded-2xl">
-              <AlertCircle className="w-6 h-6 text-danger" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Oportunidades en Riesgo</p>
-              <h4 className="text-2xl font-black text-foreground">{atRiskLeads.length}</h4>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card border-none bg-success/5 border-l-4 border-l-success">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-success/10 rounded-2xl">
-              <DollarSign className="w-6 h-6 text-success" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Ventas del Mes</p>
-              <h4 className="text-2xl font-black text-foreground">${(monthlyRevenue / 1000000).toFixed(1)}M</h4>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-2 glass-card border-none">
-          <CardHeader className="flex flex-row items-center justify-between pb-8">
-            <div>
-              <CardTitle className="text-xl font-black text-foreground">Embudo de Ventas <span className="text-primary">Pro</span></CardTitle>
-              <p className="text-sm text-muted-foreground font-semibold mt-1">Distribución de leads por etapa comercial</p>
-            </div>
-            <div className="flex gap-2">
-              <div className="px-3 py-1 rounded-lg bg-muted border border-border text-[10px] font-black text-muted-foreground uppercase tracking-widest">Mensual</div>
-              <div className="px-3 py-1 rounded-lg bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">En Vivo</div>
+        <Card className="lg:col-span-2 bg-card border border-border rounded-[2.5rem] shadow-xl overflow-hidden">
+          <CardHeader className="p-8 pb-0">
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle className="text-2xl font-black text-foreground">Embudo Comercial</CardTitle>
+                <CardDescription className="text-sm font-semibold mt-1">Cualificación de prospectos por nivel</CardDescription>
+              </div>
+              <div className="p-3 bg-primary/10 rounded-2xl">
+                <BarChart3 className="w-6 h-6 text-primary" />
+              </div>
             </div>
           </CardHeader>
-          <CardContent className="h-[400px]">
+          <CardContent className="p-8 h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={statusData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-border" />
+              <BarChart data={statusData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis 
                   dataKey="name" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11, fontWeight: 800 }} 
-                  dy={15}
+                  tick={{ fill: '#64748b', fontSize: 11, fontWeight: 900 }} 
                 />
                 <YAxis 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11, fontWeight: 800 }} 
+                  tick={{ fill: '#64748b', fontSize: 11, fontWeight: 900 }} 
                 />
                 <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    borderRadius: '20px', 
-                    border: '1px solid hsl(var(--border))', 
-                    boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.15)',
-                    color: 'hsl(var(--foreground))'
-                  }}
-                  itemStyle={{ color: 'hsl(var(--foreground))' }}
+                  cursor={{ fill: '#f8fafc' }}
+                  contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1)' }}
                 />
-                <Area type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
-              </AreaChart>
+                <Bar dataKey="value" fill="#2563eb" radius={[12, 12, 12, 12]} barSize={60} />
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <div className="space-y-6">
-          <Card className="glass-card border-none">
-            <CardHeader className="pb-6">
-              <CardTitle className="text-lg font-black text-foreground flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-warning" />
-                Top Vendedores
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {USERS.slice(0, 3).map((user, i) => (
-                <div key={user.id} className="flex items-center justify-between p-3 rounded-2xl bg-muted/50 border border-border">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary">
-                      {user.avatar}
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-foreground">{user.name}</p>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{user.salesCount} ventas</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-black text-success">${(user.closedRevenue / 1000000).toFixed(1)}M</p>
-                  </div>
+        <div className="space-y-8">
+           <Card className="bg-slate-900 border-none rounded-[2.5rem] p-8 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-48 h-48 bg-primary/20 rounded-full -mr-24 -mt-24 blur-3xl opacity-50" />
+              <div className="relative z-10 space-y-6">
+                <div className="flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full w-fit">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">IA Insights</span>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card border-none bg-slate-950 text-white overflow-hidden relative">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full -mr-16 -mt-16 blur-3xl" />
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-black flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-primary" />
-                Predicción de Cierre
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                  <span>Probabilidad Promedio</span>
-                  <span className="text-primary">72%</span>
+                <div className="space-y-4">
+                  <h4 className="text-xl font-black leading-tight">Oportunidades de Cierre</h4>
+                  <p className="text-sm text-slate-400 font-medium leading-relaxed">
+                    Prioriza los <span className="text-primary font-black">{filteredClients.filter(c => c.closingProbability > 80).length} negocios</span> más calientes para optimizar el ratio de éxito.
+                  </p>
                 </div>
-                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full" style={{ width: '72%' }} />
-                </div>
+                <Button 
+                  onClick={onViewPriority}
+                  className="w-full bg-primary hover:bg-primary/90 text-white font-black h-12 rounded-2xl shadow-xl shadow-primary/30"
+                >
+                  Ver Prioritarios
+                </Button>
               </div>
-              <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-                Basado en el comportamiento histórico, se espera cerrar <span className="text-white font-bold">4 leads</span> adicionales esta semana.
-              </p>
-            </CardContent>
-          </Card>
+           </Card>
+
+           <Card className="bg-card border border-border rounded-[2.5rem] p-8 shadow-xl">
+              <h4 className="text-lg font-black text-foreground mb-6 flex items-center gap-2">
+                <Target className="w-5 h-5 text-orange-500" /> Metas Globales
+              </h4>
+              <div className="space-y-6">
+                 <div>
+                    <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-muted-foreground mb-3">
+                       <span>Conversión</span>
+                       <span className="text-kpi">{conversionRate}% / 25%</span>
+                    </div>
+                    <div className="h-3 bg-muted rounded-full overflow-hidden">
+                       <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${Math.min((Number(conversionRate)/25)*100, 100)}%` }} />
+                    </div>
+                 </div>
+              </div>
+           </Card>
         </div>
       </div>
     </div>

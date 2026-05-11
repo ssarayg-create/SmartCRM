@@ -1,0 +1,101 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  password      String?
+  avatar        String?
+  role          String    @default("Vendedor") // Admin, Supervisor, Vendedor
+  plan          String    @default("Básico")   // Básico, Pyme, Macro
+  googleId      String?   @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Gamification
+  salesCount    Int       @default(0)
+  closedRevenue Float     @default(0)
+  points        Int       @default(0)
+  achievements  Achievement[]
+  medals        Medal[]
+
+  // Security
+  loginAttempts Int       @default(0)
+  lockUntil     DateTime?
+  
+  // Password Recovery
+  resetToken    String?   @unique
+  resetExpires  DateTime?
+
+  clients       Client[]
+  interactions  Interaction[]
+  hasSeenOnboarding Boolean @default(false)
+}
+
+model Achievement {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  icon        String
+  unlockedAt  DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Medal {
+  id          String   @id @default(uuid())
+  type        String   // oro, plata, bronce
+  title       String
+  date        DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Client {
+  id                  String    @id @default(uuid())
+  nombreNegocio       String
+  tipoNegocio         String    // Restaurante, Cafetería, Minimarket, Tienda de ropa, Otros
+  nombreContacto      String
+  telefono            String    @unique
+  email               String?
+  ciudad              String
+  estado              String    // Nuevo lead, Contacto inicial, etc.
+  temperatura         String    @default("Tibio") // Frío, Tibio, Caliente
+  necesidadDetectada  String?
+  equipoOfrecido      String?
+  presupuestoEstimado Float?    @default(0)
+  closingProbability  Int       @default(50)
+  
+  fechaRegistro       DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  ultimoContacto      DateTime?
+  proximoSeguimiento  DateTime?
+
+  assignedToId        String
+  assignedTo          User      @relation(fields: [assignedToId], references: [id])
+  
+  interactions        Interaction[]
+}
+
+model Interaction {
+  id        String   @id @default(uuid())
+  type      String   // Llamada, Email, Reunión, Demo, Nota
+  content   String
+  timestamp DateTime @default(now())
+  
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id])
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}

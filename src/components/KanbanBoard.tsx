@@ -19,9 +19,13 @@ import {
   DollarSign,
   ArrowRight
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { USERS } from '../constants';
+import { cn, formatCurrency } from '@/lib/utils';
+import { USERS, COLUMNS as STAGES } from '../constants';
 import { isStagnant } from '../lib/crm-logic';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { 
   Select, 
   SelectContent, 
@@ -31,6 +35,8 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 
 import { 
   DndContext, 
@@ -62,21 +68,25 @@ interface KanbanBoardProps {
 }
 
 const COLUMNS: LeadStatus[] = [
-  "Nuevo lead", 
+  "Nuevos prospectos", 
   "Contacto inicial", 
-  "Demo del sistema POS", 
-  "Envío de propuesta", 
+  "Presentación", 
   "Negociación", 
-  "Venta cerrada"
+  "Propuesta enviada",
+  "Ganado"
 ];
 
 const STATUS_COLORS: Record<LeadStatus, string> = {
-  "Nuevo lead": "bg-slate-400",
+  "Nuevos prospectos": "bg-slate-400",
   "Contacto inicial": "bg-blue-500",
-  "Demo del sistema POS": "bg-indigo-500",
-  "Envío de propuesta": "bg-secondary",
+  "Presentación": "bg-indigo-500",
   "Negociación": "bg-warning",
-  "Venta cerrada": "bg-success"
+  "Propuesta enviada": "bg-primary",
+  "Ganado": "bg-success",
+  "Perdido": "bg-danger",
+  "Demo": "bg-purple-500",
+  "Cerrado": "bg-slate-700",
+  "Nuevo lead": "bg-teal-500"
 };
 
 interface KanbanCardProps {
@@ -174,7 +184,7 @@ const KanbanCard: React.FC<KanbanCardProps> = ({ client, status, onViewLead, isO
 
 export default function KanbanBoard({ clients, onMoveLead, onViewLead, currentUserId }: KanbanBoardProps) {
   const [advisorFilter, setAdvisorFilter] = React.useState<string>('all');
-  const [statusFilter, setStatusFilter] = React.useState<string>('all');
+  const [selectedStages, setSelectedStages] = React.useState<LeadStatus[]>(COLUMNS);
   const [businessTypeFilter, setBusinessTypeFilter] = React.useState<string>('all');
   const [searchQuery, setSearchQuery] = React.useState('');
   const [activeClient, setActiveClient] = React.useState<Client | null>(null);
@@ -192,14 +202,92 @@ export default function KanbanBoard({ clients, onMoveLead, onViewLead, currentUs
 
   const filteredClients = clients.filter(c => {
     const matchesAdvisor = advisorFilter === 'all' || c.assignedTo === advisorFilter;
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'open' && c.estado !== 'Venta cerrada') ||
-                         (statusFilter === 'closed' && c.estado === 'Venta cerrada');
+    const matchesStatus = selectedStages.includes(c.estado);
     const matchesBusinessType = businessTypeFilter === 'all' || c.tipoNegocio === businessTypeFilter;
     const matchesSearch = c.nombreNegocio.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          c.nombreContacto.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesAdvisor && matchesStatus && matchesBusinessType && matchesSearch;
   });
+
+  const handleExport = async (format: 'excel' | 'pdf') => {
+    toast.loading(`Generando reporte de Pipeline (${format.toUpperCase()})...`);
+    
+    try {
+      if (format === 'excel') {
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Pipeline Comercial');
+        
+        // Estilo corporativo
+        sheet.addRow(['SMARTCRM - REPORTE DETALLADO DE PIPELINE POS']);
+        sheet.addRow(['Resumen de Oportunidades Activas']);
+        sheet.addRow(['Generado:', new Date().toLocaleString()]);
+        sheet.addRow([]);
+
+        const headerRow = sheet.addRow(['Negocio', 'Contacto', 'Estado', 'Valor Estimado', 'Probabilidad', 'Asesor', 'Última Actividad']);
+        headerRow.eachCell(c => {
+          c.font = { bold: true, color: { argb: 'FFFFFF' } };
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E293B' } };
+        });
+
+        filteredClients.forEach(c => {
+          sheet.addRow([
+            c.nombreNegocio,
+            c.nombreContacto,
+            c.estado,
+            c.presupuestoEstimado,
+            `${c.closingProbability}%`,
+            USERS.find(u => u.id === c.assignedTo)?.name || 'N/A',
+            new Date(c.ultimoContacto).toLocaleDateString()
+          ]);
+        });
+
+        sheet.getColumn(4).numFmt = '"$"#,##0';
+        sheet.columns.forEach(col => col.width = 20);
+        sheet.getColumn(1).width = 30;
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        saveAs(new Blob([buffer]), `SmartCRM_Pipeline_${new Date().getTime()}.xlsx`);
+      } else {
+        const doc = new jsPDF() as any;
+        doc.setTextColor(30, 41, 59);
+        doc.setFontSize(22);
+        doc.setFont("helvetica", "bold");
+        doc.text('Pipeline Comercial POS', 14, 25);
+        
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Leads Filtrados: ${filteredClients.length} | Valor Total: $ ${totalPipelineValue.toLocaleString()}`, 14, 32);
+
+        autoTable(doc, {
+          startY: 40,
+          head: [['Negocio', 'Estado', 'Valor', 'Asesor']],
+          body: filteredClients.map(c => [
+            c.nombreNegocio,
+            c.estado,
+            `$ ${c.presupuestoEstimado.toLocaleString()}`,
+            USERS.find(u => u.id === c.assignedTo)?.name.split(' ')[0] || 'N/A'
+          ]),
+          headStyles: { fillColor: [15, 23, 42] },
+          styles: { fontSize: 9 }
+        });
+
+        doc.save(`SmartCRM_Pipeline_${new Date().getTime()}.pdf`);
+      }
+      toast.dismiss();
+      toast.success('Reporte exportado correctamente');
+    } catch (error) {
+      toast.dismiss();
+      toast.error('Error al exportar reporte');
+    }
+  };
+
+  const toggleStageFilter = (stage: LeadStatus) => {
+    setSelectedStages(prev => 
+      prev.includes(stage) 
+        ? prev.filter(s => s !== stage) 
+        : [...prev, stage]
+    );
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
@@ -232,17 +320,35 @@ export default function KanbanBoard({ clients, onMoveLead, onViewLead, currentUs
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h2 className="text-4xl font-black tracking-tighter text-foreground">Pipeline <span className="text-primary">Comercial</span></h2>
-          <div className="flex items-center gap-3 mt-2">
-            <Badge variant="outline" className="rounded-lg font-black text-[10px] uppercase tracking-widest border-primary/20 text-primary bg-primary/5 px-3 py-1">
-              Total: ${totalPipelineValue.toLocaleString()} COP
-            </Badge>
-            <Badge variant="outline" className="rounded-lg font-black text-[10px] uppercase tracking-widest border-border text-muted-foreground bg-muted/50 px-3 py-1">
-              {filteredClients.length} Oportunidades
-            </Badge>
+          <div className="space-y-2">
+            <h2 className="text-4xl font-black tracking-tighter text-foreground">Pipeline <span className="text-primary italic">POS</span></h2>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="rounded-lg font-black text-[10px] uppercase tracking-widest border-primary/20 text-primary bg-primary/5 px-3 py-1">
+                Total: ${totalPipelineValue.toLocaleString()} COP
+              </Badge>
+              <Badge variant="outline" className="rounded-lg font-black text-[10px] uppercase tracking-widest border-border text-muted-foreground bg-muted/50 px-3 py-1 text-white">
+                {filteredClients.length} Oportunidades
+              </Badge>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handleExport('excel')}
+                className="rounded-xl border-border font-black text-[10px] h-8 bg-card"
+              >
+                Exportar Excel
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handleExport('pdf')}
+                className="rounded-xl border-border font-black text-[10px] h-8 bg-card"
+              >
+                Exportar PDF
+              </Button>
+            </div>
           </div>
-        </div>
         
         <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-2">
@@ -279,20 +385,23 @@ export default function KanbanBoard({ clients, onMoveLead, onViewLead, currentUs
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Estado</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px] h-11 rounded-2xl bg-card border-border font-bold text-xs">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-primary" />
-                  <SelectValue placeholder="Cualquier estado" />
-                </div>
-              </SelectTrigger>
-              <SelectContent className="rounded-2xl border-border shadow-xl bg-card">
-                <SelectItem value="all" className="font-bold text-xs italic text-muted-foreground">Cualquier estado</SelectItem>
-                <SelectItem value="open" className="font-bold text-xs">Abiertos</SelectItem>
-                <SelectItem value="closed" className="font-bold text-xs">Cerrados</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1 text-white">Etapas Visibles</Label>
+            <div className="flex flex-wrap gap-2 max-w-[400px]">
+              {COLUMNS.map(stage => (
+                <button
+                  key={stage}
+                  onClick={() => toggleStageFilter(stage)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border",
+                    selectedStages.includes(stage) 
+                      ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" 
+                      : "bg-card text-muted-foreground border-border hover:border-primary/50"
+                  )}
+                >
+                  {stage}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-2">

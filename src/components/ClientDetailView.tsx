@@ -36,11 +36,18 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import { USERS } from '../constants';
 import { getRecommendation } from '../lib/crm-logic';
-import { getCommercialRecommendation } from '../services/geminiService';
+import { getCommercialRecommendation, generateContextualProposal } from '../services/geminiService';
 import { toast } from 'sonner';
+import { 
+  FileText,
+  Copy,
+  ChevronDown,
+  ChevronUp,
+  Share2
+} from 'lucide-react';
 
 interface ClientDetailViewProps {
   client: Client;
@@ -73,22 +80,52 @@ export default function ClientDetailView({
     planSugerido: string;
   } | null>(null);
 
+  const [generatedProposal, setGeneratedProposal] = useState<string | null>(null);
+  const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
+  const [showProposal, setShowProposal] = useState(false);
+
   const assignedUser = USERS.find(u => u.id === client.assignedTo);
   const recommendation = getRecommendation(client.tipoNegocio);
 
+  const STAGES: LeadStatus[] = [
+    "Nuevos prospectos", 
+    "Contacto inicial", 
+    "Presentación", 
+    "Negociación", 
+    "Propuesta enviada", 
+    "Ganado", 
+    "Perdido"
+  ];
+
   const getStatusConfig = (status: LeadStatus) => {
     const config: Record<LeadStatus, { color: string, bg: string, icon: any }> = {
-      "Nuevo lead": { color: "text-muted-foreground", bg: "bg-muted", icon: AlertCircle },
+      "Nuevos prospectos": { color: "text-muted-foreground", bg: "bg-muted", icon: AlertCircle },
       "Contacto inicial": { color: "text-blue-500", bg: "bg-blue-500/10", icon: Clock },
-      "Demo del sistema POS": { color: "text-indigo-500", bg: "bg-indigo-500/10", icon: TrendingUp },
-      "Envío de propuesta": { color: "text-secondary", bg: "bg-secondary/10", icon: Mail },
+      "Presentación": { color: "text-indigo-500", bg: "bg-indigo-500/10", icon: TrendingUp },
       "Negociación": { color: "text-warning", bg: "bg-warning/10", icon: Clock },
-      "Venta cerrada": { color: "text-success", bg: "bg-success/10", icon: CheckCircle2 }
+      "Propuesta enviada": { color: "text-primary", bg: "bg-primary/10", icon: Sparkles },
+      "Ganado": { color: "text-success", bg: "bg-success/10", icon: CheckCircle2 },
+      "Perdido": { color: "text-danger", bg: "bg-danger/10", icon: AlertCircle },
+      "Demo": { color: "text-purple-500", bg: "bg-purple-500/10", icon: TrendingUp },
+      "Cerrado": { color: "text-slate-700", bg: "bg-slate-700/10", icon: CheckCircle2 },
+      "Nuevo lead": { color: "text-teal-500", bg: "bg-teal-500/10", icon: AlertCircle }
     };
-    return config[status] || config["Nuevo lead"];
+    return config[status] || config["Nuevos prospectos"];
   };
 
   const statusConfig = getStatusConfig(client.estado);
+
+  const handleStatusChange = (newStatus: LeadStatus) => {
+    onUpdateClient(client.id, { estado: newStatus });
+    toast.success(`Estado actualizado a: ${newStatus}`);
+    
+    onAddInteraction(client.id, {
+      timestamp: new Date().toISOString(),
+      type: 'Cambio de Estado',
+      content: `El negocio pasó de "${client.estado}" a "${newStatus}"`,
+      userId: assignedUser?.id || '1'
+    });
+  };
 
   const getTempColor = (temp: ClientTemperature) => {
     switch (temp) {
@@ -143,11 +180,48 @@ export default function ClientDetailView({
     window.open(`https://wa.me/${cleanNumber}`, '_blank');
   };
 
+  const handleGenerateProposal = async () => {
+    // REGLA: IF campos incompletos → NO generar propuesta
+    if (!client.nombreNegocio || !client.tipoNegocio || !client.necesidadDetectada) {
+      toast.error("Complete los datos del negocio (tipo y necesidad) para generar una propuesta.", {
+        description: "Se requiere: Nombre, Tipo de Negocio y Necesidad Detectada."
+      });
+      return;
+    }
+
+    setIsGeneratingProposal(true);
+    try {
+      const proposal = await generateContextualProposal({
+        negocio: client.nombreNegocio,
+        contacto: client.nombreContacto,
+        necesidad: client.necesidadDetectada,
+        equipo: client.equipoOfrecido || 'Tiendana Elite',
+        presupuesto: client.presupuestoEstimado
+      });
+      setGeneratedProposal(proposal);
+      setShowProposal(true);
+      toast.success("Propuesta comercial generada con éxito");
+    } catch (error) {
+      toast.error("Error al generar la propuesta");
+    } finally {
+      setIsGeneratingProposal(false);
+    }
+  };
+
+  const handleCopyProposal = () => {
+    if (generatedProposal) {
+      navigator.clipboard.writeText(generatedProposal);
+      toast.success("Propuesta copiada al portapapeles");
+    }
+  };
+
   const handleSendProposal = () => {
-    toast.success("Propuesta enviada correctamente", {
-      description: `Se ha enviado la propuesta comercial a ${client.nombreNegocio}.`,
-      icon: <CheckCircle2 className="w-5 h-5 text-success" />
-    });
+    if (generatedProposal) {
+      const cleanNumber = client.telefono.replace(/\s/g, '');
+      const encodedMsg = encodeURIComponent(generatedProposal);
+      window.open(`https://wa.me/${cleanNumber}?text=${encodedMsg}`, '_blank');
+      toast.success("Enviando propuesta vía WhatsApp");
+    }
   };
 
   const handleAddInteraction = () => {
@@ -171,54 +245,106 @@ export default function ClientDetailView({
         <div className="bg-slate-950 p-6 text-white relative overflow-hidden shrink-0">
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full -mr-32 -mt-32 blur-3xl" />
           <div className="relative z-10 flex justify-between items-center">
-            <div className="flex items-center gap-5">
-              <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-xl font-black text-white border border-white/10">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 rounded-[1.75rem] bg-white/10 backdrop-blur-xl flex items-center justify-center text-2xl font-black text-white border border-white/20 shadow-2xl">
                 {client.nombreNegocio.charAt(0)}
               </div>
               <div>
                 <div className="flex items-center gap-3">
-                  <h2 className="text-2xl font-black tracking-tight">{client.nombreNegocio}</h2>
-                  <Badge className={cn("font-black text-[9px] uppercase tracking-widest border-none px-2 py-0.5", statusConfig.bg, statusConfig.color)}>
-                    {client.estado}
-                  </Badge>
-                  <Badge className={cn("font-black text-[9px] uppercase tracking-widest border-none px-2 py-0.5", getTempColor(client.temperatura))}>
+                  <h2 className="text-3xl font-black tracking-tighter">{client.nombreNegocio}</h2>
+                  
+                  {/* Selector de Estado Moderno */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className={cn(
+                          "font-black text-[10px] uppercase tracking-[0.1em] border-none px-4 py-1 h-7 rounded-full cursor-pointer hover:scale-105 transition-transform", 
+                          statusConfig.bg, 
+                          statusConfig.color
+                        )}
+                      >
+                        {client.estado}
+                        <ChevronDown className="w-3 h-3 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="rounded-2xl border-border bg-card shadow-2xl p-2 min-w-[200px]">
+                      {STAGES.map((stage) => (
+                        <DropdownMenuItem 
+                          key={stage}
+                          onClick={() => handleStatusChange(stage)}
+                          className={cn(
+                            "rounded-xl font-bold text-xs py-2.5 mb-1 cursor-pointer",
+                            client.estado === stage ? "bg-primary text-white" : "hover:bg-muted"
+                          )}
+                        >
+                          {stage}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <Badge className={cn("font-black text-[10px] uppercase tracking-[0.1em] border-none px-4 py-2 rounded-full", getTempColor(client.temperatura))}>
                     {client.temperatura}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-3 text-slate-400 font-bold text-xs mt-0.5">
-                  <span className="flex items-center gap-1">
-                    <UserIcon className="w-3.5 h-3.5" />
+                <div className="flex items-center gap-4 text-slate-400 font-bold text-sm mt-1.5 bg-white/5 w-fit px-4 py-1.5 rounded-full border border-white/5">
+                  <span className="flex items-center gap-2">
+                    <UserIcon className="w-4 h-4 text-primary" />
                     {client.nombreContacto}
                   </span>
-                  <span className="w-1 h-1 rounded-full bg-slate-700" />
-                  <span className="flex items-center gap-1">
-                    <Building2 className="w-3.5 h-3.5" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-slate-700" />
+                  <span className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-blue-400" />
                     {client.tipoNegocio}
                   </span>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-xl text-white/50 hover:text-white hover:bg-white/10 w-10 h-10">
+                  <Button variant="ghost" size="icon" className="rounded-2xl text-white/50 hover:text-white hover:bg-white/10 w-12 h-12 border border-white/10">
                     <MoreVertical className="w-6 h-6" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="rounded-2xl p-2 border-border shadow-xl bg-card min-w-[180px]">
-                  <DropdownMenuItem onClick={() => onEdit(client)} className="rounded-xl font-bold text-xs py-2.5 cursor-pointer text-foreground flex items-center gap-2">
-                    <ExternalLink className="w-4 h-4" /> Editar Datos
+                <DropdownMenuContent align="end" className="rounded-[2rem] p-4 border-border shadow-2xl bg-card min-w-[240px]">
+                  <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 ml-2">Gestión de Cliente</h4>
+                  <DropdownMenuItem onClick={() => onEdit(client)} className="rounded-xl font-bold text-sm py-3 cursor-pointer text-foreground flex items-center gap-3 hover:bg-muted mb-1">
+                    <ExternalLink className="w-4 h-4 text-primary" /> Editar Datos Maestro
                   </DropdownMenuItem>
-                  <Separator className="my-1" />
-                  <DropdownMenuItem className="rounded-xl font-bold text-xs py-2.5 cursor-pointer text-foreground flex items-center gap-2">
-                    <UserPlus className="w-4 h-4" /> Transferir Asesor
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onDelete(client.id)} className="rounded-xl font-bold text-xs py-2.5 cursor-pointer text-danger hover:bg-danger/10 flex items-center gap-2">
-                    <Trash2 className="w-4 h-4" /> Eliminar Cliente
+                  
+                  <Separator className="my-2" />
+                  
+                  <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 mt-2 ml-2">Transferir a Asesor</h4>
+                  <div className="space-y-1">
+                    {USERS.filter(u => u.id !== client.assignedTo).map(user => (
+                      <DropdownMenuItem 
+                        key={user.id}
+                        onClick={() => {
+                          onTransfer(client.id, user.id);
+                          toast.success(`Cliente transferido a ${user.name}`);
+                          onAddInteraction(client.id, {
+                            timestamp: new Date().toISOString(),
+                            type: 'Transferencia',
+                            content: `Cliente transferido a ${user.name}`,
+                            userId: 'u1'
+                          });
+                        }}
+                        className="rounded-xl font-bold text-xs py-2.5 cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors flex items-center gap-2"
+                      >
+                        <span className="text-base">{user.avatar}</span> {user.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
+
+                  <Separator className="my-2" />
+                  <DropdownMenuItem onClick={() => onDelete(client.id)} className="rounded-xl font-bold text-sm py-3 cursor-pointer text-danger hover:bg-danger/10 flex items-center gap-3">
+                    <Trash2 className="w-4 h-4" /> Eliminar Negocio
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="ghost" size="icon" onClick={onClose} className="rounded-xl text-white/50 hover:text-white hover:bg-white/10 w-10 h-10">
+              <Button variant="ghost" size="icon" onClick={onClose} className="rounded-2xl text-white/50 hover:text-white hover:bg-white/10 w-12 h-12 border border-white/10">
                 <X className="w-6 h-6" />
               </Button>
             </div>
@@ -268,53 +394,41 @@ export default function ClientDetailView({
                   <section>
                     <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-6">Detalles del Negocio</h3>
                     <div className="grid grid-cols-1 gap-4">
-                      <div className="p-4 rounded-2xl bg-muted border border-border flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Solución POS Ofrecida</p>
-                          <div className="flex items-center gap-2">
-                            <Package className="w-4 h-4 text-primary" />
-                            <p className="text-sm font-bold text-foreground">{client.solucionOfrecida || 'Pendiente'}</p>
+                      <div className="p-5 rounded-3xl bg-muted border border-border group hover:bg-muted/80 transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                               <Package className="w-3.5 h-3.5 text-primary" /> Solución POS Sugerida
+                            </p>
+                            <p className="text-base font-black text-foreground">{client.equipoOfrecido || 'Pendiente por definir'}</p>
+                          </div>
+                          <div className="text-right">
+                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5">Presupuesto Estimado</p>
+                             <p className="text-base font-black text-primary">{formatCurrency(client.presupuestoEstimado || 0)}</p>
                           </div>
                         </div>
                       </div>
-                      <div className="p-4 rounded-2xl bg-muted border border-border flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Equipo Ofrecido</p>
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-secondary" />
-                            <p className="text-sm font-bold text-foreground">{client.equipoOfrecido || 'Pendiente'}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-2xl bg-muted border border-border flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Presupuesto Estimado</p>
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-success" />
-                            <p className="text-sm font-bold text-foreground">${client.presupuestoEstimado.toLocaleString()} COP</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Probabilidad</p>
-                          <p className="text-sm font-bold text-primary">{client.closingProbability}%</p>
-                        </div>
-                      </div>
-                        <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 rounded-2xl bg-muted border border-border">
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Registro</p>
-                          <p className="text-sm font-bold text-foreground">
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-5 rounded-3xl bg-muted border border-border group hover:bg-muted/80 transition-colors">
+                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                            <Calendar className="w-3.5 h-3.5 text-primary" /> Fecha Registro
+                          </p>
+                          <p className="text-sm font-black text-foreground">
                             {(() => {
-                              const [y, m, d] = client.fechaRegistro.split('T')[0].split('-').map(Number);
-                              return new Date(y, m - 1, d).toLocaleDateString();
+                              const dateStr = typeof client.fechaRegistro === 'string' ? client.fechaRegistro : (client.fechaRegistro as any).toISOString();
+                              return new Date(dateStr).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
                             })()}
                           </p>
                         </div>
-                        <div className="p-4 rounded-2xl bg-muted border border-border">
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Seguimiento</p>
-                          <p className="text-sm font-bold text-warning">
+                        <div className="p-5 rounded-3xl bg-muted border border-border group hover:bg-muted/80 transition-colors border-rose-500/10">
+                          <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5" /> Próximo Seguimiento
+                          </p>
+                          <p className="text-sm font-black text-foreground">
                             {(() => {
-                              const [y, m, d] = client.proximoSeguimiento.split('T')[0].split('-').map(Number);
-                              return new Date(y, m - 1, d).toLocaleDateString();
+                               const dateStr = typeof client.proximoSeguimiento === 'string' ? client.proximoSeguimiento : (client.proximoSeguimiento as any).toISOString();
+                               return new Date(dateStr).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
                             })()}
                           </p>
                         </div>
@@ -455,8 +569,57 @@ export default function ClientDetailView({
                       <MessageSquare className="w-4 h-4 mr-2" />
                       Contactar WhatsApp
                     </Button>
+                    <Button 
+                      onClick={handleGenerateProposal}
+                      disabled={isGeneratingProposal}
+                      className="w-full rounded-2xl bg-secondary hover:bg-secondary/90 text-white font-black h-12 shadow-lg shadow-secondary/20 transition-all"
+                    >
+                      {isGeneratingProposal ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+                      Generar Propuesta IA
+                    </Button>
                   </div>
                 </section>
+
+                {generatedProposal && (
+                  <section className="p-6 rounded-[2rem] bg-card border border-primary/20 shadow-xl animate-in slide-in-from-right-4">
+                    <div className="flex items-center justify-between mb-4">
+                       <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-primary" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-foreground">Propuesta Generada</span>
+                       </div>
+                       <Button variant="ghost" size="sm" onClick={() => setShowProposal(!showProposal)} className="h-8 w-8 p-0 rounded-lg">
+                         {showProposal ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                       </Button>
+                    </div>
+                    
+                    {showProposal && (
+                      <div className="space-y-4 animate-in fade-in duration-300">
+                        <div className="bg-muted p-4 rounded-xl max-h-[200px] overflow-y-auto scrollbar-hide">
+                          <p className="text-[11px] font-medium leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                            {generatedProposal}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={handleCopyProposal}
+                            className="rounded-xl border-border font-bold text-[10px]"
+                          >
+                            <Copy className="w-3.5 h-3.5 mr-2" /> Copiar
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            onClick={handleSendProposal}
+                            className="rounded-xl bg-primary font-bold text-[10px]"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 mr-2" /> Enviar WA
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
 
                 <section className="p-6 rounded-[2rem] bg-muted border border-border">
                   <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Asesor Asignado</h3>
