@@ -259,23 +259,23 @@ export default function CalendarView({ currentUser }: CalendarViewProps) {
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
-              <div className="flex gap-1 mr-2">
-                <Button variant="ghost" size="icon" onClick={prevMonth} className="rounded-xl h-10 w-10 hover:bg-muted">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+              <div className="flex gap-1">
+                <Button variant="ghost" size="icon" onClick={prevMonth} className="rounded-xl h-10 w-10 hover:bg-muted shrink-0">
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())} className="rounded-xl px-4 text-xs font-bold uppercase tracking-widest">
+                <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())} className="rounded-xl px-4 text-xs font-bold uppercase tracking-widest whitespace-nowrap">
                   Hoy
                 </Button>
-                <Button variant="ghost" size="icon" onClick={nextMonth} className="rounded-xl h-10 w-10 hover:bg-muted">
+                <Button variant="ghost" size="icon" onClick={nextMonth} className="rounded-xl h-10 w-10 hover:bg-muted shrink-0">
                   <ChevronRight className="w-5 h-5" />
                 </Button>
               </div>
-              <Button onClick={handleSyncGoogle} variant="outline" className="rounded-xl border-border font-black text-[10px] uppercase tracking-widest h-10 px-4 gap-2 hover:border-primary transition-all">
+              <Button onClick={handleSyncGoogle} variant="outline" className="rounded-xl border-border font-black text-[10px] uppercase tracking-widest h-10 px-4 gap-2 hover:border-primary transition-all shrink-0 whitespace-nowrap">
                 <ExternalLink className="w-3 h-3 text-primary" />
                 Google Sync
               </Button>
-              <Button onClick={handleNewEvent} className="rounded-xl bg-primary hover:bg-primary/90 font-black text-[10px] uppercase tracking-widest h-10 px-4 gap-2 shadow-lg shadow-primary/20">
+              <Button onClick={handleNewEvent} className="rounded-xl bg-primary hover:bg-primary/90 font-black text-[10px] uppercase tracking-widest h-10 px-4 gap-2 shadow-lg shadow-primary/20 shrink-0 whitespace-nowrap">
                 <Plus className="w-4 h-4" />
                 Nuevo Evento
               </Button>

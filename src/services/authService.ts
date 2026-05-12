@@ -18,8 +18,7 @@ export const authService = {
 
   async loginWithGoogle() {
     if (!isSupabaseConfigured) {
-      console.warn("Supabase no configurado correctamente para OAuth.");
-      throw new Error('El inicio de sesión con Google requiere una configuración válida de Supabase.');
+      throw new Error('Configuración de Supabase no encontrada. Por favor, agrega VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en Settings para que el login sea real.');
     }
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -36,7 +35,7 @@ export const authService = {
       return data;
     } catch (err: any) {
       console.error('Google Login Error:', err);
-      throw new Error('No se pudo conectar con Google. Por favor, intenta de nuevo.');
+      throw err;
     }
   },
 
@@ -185,6 +184,34 @@ export const authService = {
     });
     if (!response.ok) throw new Error('Refresh failed');
     return response.json();
+  },
+
+  async resetPassword(email: string) {
+    if (email === 'valentinagutierrez@gmail.com') {
+      return { message: 'Se ha enviado un enlace de recuperación a tu correo de demostración.' };
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+
+        if (error) throw error;
+        return { message: 'Se ha enviado un correo para restablecer tu contraseña.' };
+      } catch (err: any) {
+        console.error('Supabase Reset Password Error:', err);
+        throw err;
+      }
+    }
+
+    // Fallback Local
+    const storedUsers = JSON.parse(localStorage.getItem('smartcrm_local_users') || '[]');
+    if (storedUsers.some((u: any) => u.email === email)) {
+      return { message: 'Se ha enviado un correo local (Simulado).' };
+    }
+
+    throw new Error('No se encontró una cuenta con ese correo electrónico.');
   },
 
   async logout() {
